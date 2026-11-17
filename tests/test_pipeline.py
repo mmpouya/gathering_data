@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
-from crawl_hadith import api, crawl, db
+from crawl_hadith import api, cli, crawl, db
 from crawl_hadith.api import ApiError
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -351,6 +353,24 @@ class PipelineTest(unittest.TestCase):
             [101, 102, 103],
         )
         self.assertEqual(calls, [1, 2, 2, 3])
+
+    def test_cli_appends_run_log_with_command(self) -> None:
+        log_path = self.db_path.with_suffix(".log")
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            self.assertEqual(
+                cli.main(["status", "--db", str(self.db_path)]), 0
+            )
+            self.assertEqual(
+                cli.main(["status", "--db", str(self.db_path)]), 0
+            )
+        text = log_path.read_text(encoding="utf-8")
+        self.assertEqual(text.count("===== run start ====="), 2)
+        self.assertEqual(text.count("===== run end ====="), 2)
+        self.assertEqual(text.count("command: crawl-hadith status --db"), 2)
+        self.assertIn("hadiths=", text)
 
 
 if __name__ == "__main__":

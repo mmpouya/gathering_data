@@ -13,3 +13,6 @@ wheels/
 *.db
 *.db-wal
 *.db-shm
+
+# Run logs
+*.log

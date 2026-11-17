@@ -4,12 +4,57 @@ from __future__ import annotations
 
 import argparse
 import logging
+import subprocess
 import sys
 from pathlib import Path
 
 from . import db
 from .api import ApiError, Client
 from .crawl import crawl, ensure_initialized, full_seed
+
+
+class _Tee:
+    """Write console output to the original stream and the run log."""
+
+    def __init__(self, *streams) -> None:
+        self._streams = streams
+
+    def write(self, data: str) -> int:
+        for stream in self._streams:
+            stream.write(data)
+        return len(data)
+
+    def flush(self) -> None:
+        for stream in self._streams:
+            stream.flush()
+
+    def isatty(self) -> bool:
+        return False
+
+
+def _command_line(argv: list[str] | None) -> str:
+    if argv is None:
+        raw = list(getattr(sys, "orig_argv", sys.argv))
+    else:
+        raw = ["crawl-hadith", *argv]
+    return subprocess.list2cmdline(raw)
+
+
+def _configure_logging() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        stream=sys.stderr,
+        force=True,
+    )
+
+
+def _reset_logging() -> None:
+    root = logging.getLogger()
+    for handler in list(root.handlers):
+        root.removeHandler(handler)
+        handler.close()
 
 
 def _parse_ids(value: str) -> list[int]:
@@ -128,61 +173,80 @@ def _print_status(path: Path, conn) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(message)s",
-        datefmt="%H:%M:%S",
-    )
     parser = _build_parser()
     args = parser.parse_args(argv)
     db_path = Path(args.db)
+    log_path = db_path.with_suffix(".log")
+    log_path.parent.mkdir(parents=True, exist_ok=True)
 
-    if args.command == "status":
-        if not db_path.exists():
-            print(f"database not found: {db_path}")
-            return 1
-        conn = db.connect(db_path)
-        try:
-            db.ensure_schema(conn)
-            _print_status(db_path, conn)
-        except RuntimeError as exc:
-            print(f"database error: {exc}", file=sys.stderr)
-            return 1
-        finally:
-            conn.close()
-        return 0
+    log_stream = open(log_path, "a", encoding="utf-8", buffering=1)
+    original_stdout, original_stderr = sys.stdout, sys.stderr
+    sys.stdout = _Tee(original_stdout, log_stream)
+    sys.stderr = _Tee(original_stderr, log_stream)
+    try:
+        _configure_logging()
+        logger = logging.getLogger("crawl_hadith.cli")
+        logger.info("===== run start =====")
+        logger.info("command: %s", _command_line(argv))
+        logger.info("cwd: %s", Path.cwd())
+        logger.info("db: %s", db_path)
+        logger.info("log: %s", log_path)
 
-    if args.command == "crawl":
-        conn = db.connect(db_path)
-        client = Client(
-            timeout=args.timeout,
-            retries=args.retries,
-            delay=args.delay,
-        )
-        try:
-            ensure_initialized(conn, client, seed=args.ids is None)
-            if args.full_seed:
-                full_seed(conn, client)
-            crawl(
-                conn,
-                client,
-                limit=args.limit,
-                ids=args.ids,
-                enrich=args.enrich_fallback,
-                workers=max(1, args.workers),
+        if args.command == "status":
+            if not db_path.exists():
+                print(f"database not found: {db_path}")
+                return 1
+            conn = db.connect(db_path)
+            try:
+                db.ensure_schema(conn)
+                _print_status(db_path, conn)
+            except RuntimeError as exc:
+                print(f"database error: {exc}", file=sys.stderr)
+                return 1
+            finally:
+                conn.close()
+            return 0
+
+        if args.command == "crawl":
+            conn = db.connect(db_path)
+            client = Client(
+                timeout=args.timeout,
+                retries=args.retries,
+                delay=args.delay,
             )
-            _print_status(db_path, conn)
-        except ApiError as exc:
-            print(f"request failed: {exc}", file=sys.stderr)
-            return 1
-        except RuntimeError as exc:
-            print(f"database error: {exc}", file=sys.stderr)
-            return 1
-        except KeyboardInterrupt:
-            return 130
-        finally:
-            conn.close()
-        return 0
+            try:
+                ensure_initialized(conn, client, seed=args.ids is None)
+                if args.full_seed:
+                    full_seed(conn, client)
+                crawl(
+                    conn,
+                    client,
+                    limit=args.limit,
+                    ids=args.ids,
+                    enrich=args.enrich_fallback,
+                    workers=max(1, args.workers),
+                )
+                _print_status(db_path, conn)
+            except ApiError as exc:
+                print(f"request failed: {exc}", file=sys.stderr)
+                return 1
+            except RuntimeError as exc:
+                print(f"database error: {exc}", file=sys.stderr)
+                return 1
+            except KeyboardInterrupt:
+                return 130
+            finally:
+                conn.close()
+            return 0
 
-    parser.error(f"unknown command: {args.command}")
-    return 2
+        parser.error(f"unknown command: {args.command}")
+        return 2
+    except Exception:
+        logging.getLogger("crawl_hadith.cli").exception("unhandled error")
+        raise
+    finally:
+        logging.getLogger("crawl_hadith.cli").info("===== run end =====")
+        _reset_logging()
+        sys.stdout = original_stdout
+        sys.stderr = original_stderr
+        log_stream.close()

@@ -198,8 +198,8 @@ repo. Match surrounding style and keep the stdlib-only constraint.
   New non-trivial branching/parsing logic should get a small unittest.
 - **Dependencies:** do not add packages for HTTP, XML, SQLite, retries, or CLI;
   the standard library already covers them.
-- **Ignored/generated:** never commit `*.db`, WAL/SHM files, `.venv`, or
-  `__pycache__`.
+- **Ignored/generated:** never commit `*.db`, WAL/SHM files, `*.log`, `.venv`,
+  or `__pycache__`.
 
 ## Session Operating Rules
 
@@ -225,4 +225,5 @@ Any agent working in this repository must:
 
 <!-- Newest entry first. Append-only; do not modify older entries. -->
 
+- 2026-11-18 - Per-run logging: added appended `<db>.log` files in `cli.py` via a stdout/stderr tee and configured logger, recording each command, cwd, db path, progress, status, errors, and run end; added `test_cli_appends_run_log_with_command`, README logging docs, and `*.log` ignore. Verification: 9 offline tests pass. Pending: none.
 - 2026-11-18 - Repository indexing and AGENTS.md creation: inspected all source modules, `schema.sql`, CLI, tests, fixtures, README, git state, and current DB crawl status; verified all 8 offline tests pass; documented architecture, commands, and invariants. Pending: none.

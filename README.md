@@ -51,6 +51,17 @@ Useful flags for `crawl`:
 | `--full-seed` | Scan all source books to discover missing IDs |
 | `--enrich-fallback` | Retry primary endpoints for `fallback` stages |
 
+## Run log
+
+Every `crawl` and `status` run appends to a `.log` file next to the database:
+
+- `hadith.db` → `hadith.log`
+- `test.db` → `test.log`
+
+Each run starts with the command, working directory, database path, and log
+path, then captures progress, warnings, errors, and the final status table.
+Log files are git-ignored.
+
 ## Data collected
 
 | Tab / data | API |
