@@ -1,0 +1,19 @@
+{
+ "isSuccess": true,
+ "data": {
+  "hadithId": "105542",
+  "vol": 2,
+  "pageNum": 79,
+  "mainTitle": "الکافي",
+  "shortTitle": "الکافي",
+  "shortText": "<Hadith><Document> ... <HadithQael><Innocent>اَلسَّلاَمُ</Innocent></HadithQael> قَالَ كَانَ <Exporter><Innocent> أَمِيرُ اَلْمُؤْمِنِينَ صَلَوَاتُ اَللَّهِ عَلَيْهِ</Innocent></Exporter> يَقُولُ:</Document> أَفْضَلُ اَلْعِبَادَةِ اَلْعَفَافُ . </Hadith>",
+  "text": "<Hadith><Document><Narrator> عِدَّةٌ مِنْ أَصْحَابِنَا</Narrator> عَنْ <Narrator> سَهْلِ بْنِ زِيَادٍ</Narrator> عَنْ <Narrator> جَعْفَرِ بْنِ مُحَمَّدٍ اَلْأَشْعَرِيِّ</Narrator> عَنْ <Narrator> عَبْدِ اَللَّهِ بْنِ مَيْمُونٍ اَلْقَدَّاحِ</Narrator> عَنْ <HadithQael><Innocent> أَبِي عَبْدِ اَللَّهِ عَلَيْهِ اَلسَّلاَمُ</Innocent></HadithQael> قَالَ كَانَ <Exporter><Innocent> أَمِيرُ اَلْمُؤْمِنِينَ صَلَوَاتُ اَللَّهِ عَلَيْهِ</Innocent></Exporter> يَقُولُ:</Document> أَفْضَلُ اَلْعِبَادَةِ اَلْعَفَافُ . </Hadith>",
+  "qael": "امیرالمؤمنین (علیه السلام),امام صادق (علیه السلام),امام صادق (علیه السلام)",
+  "toc": "الجزء الثاني>كتاب الإيمان و الكفر>بَابُ اَلْعِفَّةِ"
+ },
+ "totalCount": 0,
+ "statusCode": 200,
+ "message": "عملیات با موفقیت انجام شد",
+ "exception": null,
+ "validationMessages": null
+}

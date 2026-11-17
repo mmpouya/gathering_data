@@ -1,0 +1,885 @@
+{
+ "isSuccess": true,
+ "data": {
+  "sanadList": [
+   {
+    "sanad": [
+     {
+      "order": 0,
+      "type": 4,
+      "title": "محمد بن يعقوب الكليني",
+      "raviList": [
+       {
+        "raviId": 5717,
+        "hint": "محمد بن يعقوب الكليني,امامی,ثقة"
+       }
+      ]
+     },
+     {
+      "order": 1,
+      "type": 0,
+      "title": "عدة من أصحابنا",
+      "raviList": [
+       {
+        "raviId": 4219,
+        "hint": "علي بن محمد علان الكليني,امامی,ثقة"
+       },
+       {
+        "raviId": 5480,
+        "hint": "محمد بن عقيل الكليني"
+       },
+       {
+        "raviId": 24694,
+        "hint": "محمد بن جعفر الأسدي الكوفي,امامی,ثقة"
+       },
+       {
+        "raviId": 35635,
+        "hint": "محمد بن الحسن الطائي الرازي,امامی,ثقة"
+       }
+      ]
+     },
+     {
+      "order": 2,
+      "type": 1,
+      "title": "عن"
+     },
+     {
+      "order": 3,
+      "type": 0,
+      "title": "سهل بن زياد",
+      "raviList": [
+       {
+        "raviId": 2921,
+        "hint": "سهل بن زياد الآدمي,امامی,ثقة"
+       }
+      ]
+     },
+     {
+      "order": 4,
+      "type": 1,
+      "title": "عن"
+     },
+     {
+      "order": 5,
+      "type": 0,
+      "title": "جعفر بن محمد الأشعري",
+      "raviList": [
+       {
+        "raviId": 2133,
+        "hint": "جعفر بن محمد بن عبيد الله الأشعري,امامی,ثقة"
+       }
+      ]
+     },
+     {
+      "order": 6,
+      "type": 1,
+      "title": "عن"
+     },
+     {
+      "order": 7,
+      "type": 0,
+      "title": "عبد الله بن ميمون القداح",
+      "raviList": [
+       {
+        "raviId": 3649,
+        "hint": "عبد الله بن ميمون القداح,امامی,ثقة"
+       }
+      ]
+     },
+     {
+      "order": 8,
+      "type": 1,
+      "title": "عن"
+     },
+     {
+      "order": 9,
+      "type": 0,
+      "title": "أبي عبد الله عليه السلام",
+      "raviList": [
+       {
+        "raviId": 2107,
+        "hint": "جعفر بن محمد الصادق ع,معصوم,معصوم"
+       }
+      ]
+     },
+     {
+      "order": 10,
+      "type": 1,
+      "title": "قال كان"
+     },
+     {
+      "order": 11,
+      "type": 0,
+      "title": "أمير المؤمنين عليه السلام",
+      "raviList": [
+       {
+        "raviId": 3902,
+        "hint": "علي أمير المؤمنين ع,معصوم,معصوم"
+       }
+      ]
+     },
+     {
+      "order": 12,
+      "type": 1,
+      "title": "يقول"
+     }
+    ]
+   }
+  ],
+  "raviList": [
+   {
+    "raviId": 2107,
+    "infoList": [
+     {
+      "title": "معصوم",
+      "text": [
+       {
+        "text": "جعفر بن محمد الصادق عليه السلام‍",
+        "bookName": [
+         {
+          "bookName": "استنتاج من لفظ العنوان"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "infoList2": [
+     {
+      "title": " نتيجه ارزيابي",
+      "text": "معصوم, معصوم"
+     },
+     {
+      "title": "جمع بندي ارزيابي",
+      "text": "معصوم"
+     }
+    ]
+   },
+   {
+    "raviId": 2133,
+    "infoList2": [
+     {
+      "title": " نتيجه ارزيابي",
+      "text": "امامي, ثقة"
+     },
+     {
+      "title": "جمع بندي ارزيابي",
+      "text": "إمامي‌,ثقة على التحقيق"
+     }
+    ]
+   },
+   {
+    "raviId": 2921,
+    "infoList": [
+     {
+      "title": "لقب",
+      "text": [
+       {
+        "text": "الآدمي",
+        "bookName": [
+         {
+          "bookName": "الغضائري"
+         },
+         {
+          "bookName": "البرقي"
+         },
+         {
+          "bookName": "الكشي"
+         },
+         {
+          "bookName": "النجاشي"
+         },
+         {
+          "bookName": "الفهرست للطوسي"
+         },
+         {
+          "bookName": "رجال الطوسي"
+         }
+        ]
+       },
+       {
+        "text": "الرازي",
+        "bookName": [
+         {
+          "bookName": "الغضائري"
+         },
+         {
+          "bookName": "البرقي"
+         },
+         {
+          "bookName": "الكشي"
+         },
+         {
+          "bookName": "النجاشي"
+         },
+         {
+          "bookName": "رجال الطوسي"
+         },
+         {
+          "bookName": "الفهرست للطوسي"
+         }
+        ]
+       },
+       {
+        "text": "رازي",
+        "bookName": [
+         {
+          "bookName": "رجال الطوسي"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "title": "کنيه",
+      "text": [
+       {
+        "text": "أبو سعيد",
+        "bookName": [
+         {
+          "bookName": "الغضائري"
+         },
+         {
+          "bookName": "البرقي"
+         },
+         {
+          "bookName": "الكشي"
+         },
+         {
+          "bookName": "النجاشي"
+         },
+         {
+          "bookName": "الفهرست للطوسي"
+         },
+         {
+          "bookName": "رجال الطوسي"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "title": "طبقه در ثمانیه",
+      "text": [
+       {
+        "text": "الجواد عليه السلام",
+        "bookName": [
+         {
+          "bookName": "الكشي"
+         },
+         {
+          "bookName": "رجال الطوسي"
+         }
+        ]
+       },
+       {
+        "text": "العسكري عليه السلام",
+        "bookName": [
+         {
+          "bookName": "الكشي"
+         },
+         {
+          "bookName": "النجاشي"
+         },
+         {
+          "bookName": "رجال الطوسي"
+         },
+         {
+          "bookName": "البرقي"
+         }
+        ]
+       },
+       {
+        "text": "الهادي عليه السلام",
+        "bookName": [
+         {
+          "bookName": "الكشي"
+         },
+         {
+          "bookName": "رجال الطوسي"
+         },
+         {
+          "bookName": "البرقي"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "infoList2": [
+     {
+      "title": " نتيجه ارزيابي",
+      "text": "امامي, ثقة"
+     },
+     {
+      "title": "جمع بندي ارزيابي",
+      "text": "إمامي‌,مختلف فيه،ثقة على التحقيق"
+     },
+     {
+      "title": "الفاظ جرح و تعدیل",
+      "text": [
+       {
+        "text": "ثقة",
+        "bookName": [
+         {
+          "raviTitle": "سهل بن زیاد الآدمی",
+          "bookName": "رجال الطوسي1/387",
+          "url": ""
+         }
+        ]
+       },
+       {
+        "text": "ضعيف",
+        "bookName": [
+         {
+          "raviTitle": "أبو سعید الآدمی",
+          "bookName": "اختیار معرفة الرجال2/837",
+          "url": "https://noorlib.ir/book/view/636?volumeNumber=2&pageNumber=837&viewType=html"
+         },
+         {
+          "raviTitle": "سهل بن الآدمی",
+          "bookName": "رجال ابن الغضائري1/59",
+          "url": "https://noorlib.ir/book/view/10012?volumeNumber=1&pageNumber=59&viewType=html"
+         },
+         {
+          "raviTitle": "سهل بن زیاد أبو سعید",
+          "bookName": "رجال النجاشي1/185",
+          "url": ""
+         },
+         {
+          "raviTitle": "سهل بن زیاد الآدمی",
+          "bookName": "الفهرست للطوسي1/228",
+          "url": "https://noorlib.ir/book/view/10023?volumeNumber=1&sectionNumber=2&pageNumber=228&viewType=html"
+         }
+        ]
+       },
+       {
+        "text": "ضعيف جدا",
+        "bookName": [
+         {
+          "raviTitle": "سهل بن زیاد أبو سعید",
+          "bookName": "رجال ابن الغضائري1/66",
+          "url": "https://noorlib.ir/book/view/10012?volumeNumber=1&pageNumber=66&viewType=html"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "raviId": 3649,
+    "infoList": [
+     {
+      "title": "لقب",
+      "text": [
+       {
+        "text": "القداح",
+        "bookName": [
+         {
+          "bookName": "رجال الطوسي"
+         },
+         {
+          "bookName": "الفهرست للطوسي"
+         },
+         {
+          "bookName": "البرقي"
+         },
+         {
+          "bookName": "النجاشي"
+         }
+        ]
+       },
+       {
+        "text": "المكي",
+        "bookName": [
+         {
+          "bookName": "رجال الطوسي"
+         }
+        ]
+       },
+       {
+        "text": "مكي",
+        "bookName": [
+         {
+          "bookName": "البرقي"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "title": "طبقه در ثمانیه",
+      "text": [
+       {
+        "text": "الصادق عليه السلام",
+        "bookName": [
+         {
+          "bookName": "رجال الطوسي"
+         },
+         {
+          "bookName": "البرقي"
+         },
+         {
+          "bookName": "النجاشي"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "infoList2": [
+     {
+      "title": " نتيجه ارزيابي",
+      "text": "امامي, ثقة"
+     },
+     {
+      "title": "جمع بندي ارزيابي",
+      "text": "إمامي و ليس من الإسماعيلية,ثقة"
+     },
+     {
+      "title": "الفاظ جرح و تعدیل",
+      "text": [
+       {
+        "text": "ثقة",
+        "bookName": [
+         {
+          "raviTitle": "عبد الله بن میمون الأسود",
+          "bookName": "الخلاصة للحلي1/108",
+          "url": "https://noorlib.ir/book/view/1472?volumeNumber=1&sectionNumber=2&pageNumber=108&viewType=html"
+         },
+         {
+          "raviTitle": "عبد الله بن میمون بن الأسود",
+          "bookName": "رجال النجاشي1/213",
+          "url": ""
+         }
+        ]
+       },
+       {
+        "text": "متفرقات",
+        "bookName": [
+         {
+          "raviTitle": "عبد الله بن میمون",
+          "bookName": "اختیار معرفة الرجال2/687",
+          "url": "https://noorlib.ir/book/view/636?volumeNumber=2&pageNumber=687&viewType=html"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "raviId": 3902,
+    "infoList": [
+     {
+      "title": "معصوم",
+      "text": [
+       {
+        "text": "علي أمير المؤمنين عليه السلام‍",
+        "bookName": [
+         {
+          "bookName": "استنتاج من لفظ العنوان"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "infoList2": [
+     {
+      "title": " نتيجه ارزيابي",
+      "text": "معصوم, معصوم"
+     },
+     {
+      "title": "جمع بندي ارزيابي",
+      "text": "معصوم"
+     }
+    ]
+   },
+   {
+    "raviId": 4219,
+    "infoList": [
+     {
+      "title": "لقب",
+      "text": [
+       {
+        "text": "الرازي",
+        "bookName": [
+         {
+          "bookName": "النجاشي"
+         }
+        ]
+       },
+       {
+        "text": "الكليني",
+        "bookName": [
+         {
+          "bookName": "النجاشي"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "title": "کنيه",
+      "text": [
+       {
+        "text": "أبو الحسن",
+        "bookName": [
+         {
+          "bookName": "النجاشي"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "title": "طبقه در ثمانیه",
+      "text": [
+       {
+        "text": "كان استأذن الصاحب عليه السلام في الحج",
+        "bookName": [
+         {
+          "bookName": "النجاشي"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "title": "اشتهار",
+      "text": [
+       {
+        "text": "علان",
+        "bookName": [
+         {
+          "bookName": "النجاشي"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "infoList2": [
+     {
+      "title": " نتيجه ارزيابي",
+      "text": "امامي, ثقة"
+     },
+     {
+      "title": "جمع بندي ارزيابي",
+      "text": "إمامي‌,ثقة"
+     },
+     {
+      "title": "الفاظ جرح و تعدیل",
+      "text": [
+       {
+        "text": "ثقة",
+        "bookName": [
+         {
+          "raviTitle": "أحمد بن إبراهیم المعروف بعلان",
+          "bookName": "الخلاصة للحلي1/18",
+          "url": "https://noorlib.ir/book/view/1472?volumeNumber=1&sectionNumber=2&pageNumber=18&viewType=html"
+         },
+         {
+          "raviTitle": "أحمد بن إبراهیم المعروف بعلان",
+          "bookName": "رجال الطوسي1/407",
+          "url": ""
+         },
+         {
+          "raviTitle": "محمد بن إبراهیم",
+          "bookName": "الخلاصة للحلي1/148",
+          "url": "https://noorlib.ir/book/view/1472?volumeNumber=1&sectionNumber=2&pageNumber=148&viewType=html"
+         },
+         {
+          "raviTitle": "محمد بن إبراهیم المعروف بعلان",
+          "bookName": "رجال الطوسي1/439",
+          "url": ""
+         }
+        ]
+       },
+       {
+        "text": "ثقة عين",
+        "bookName": [
+         {
+          "raviTitle": "علی بن محمد بن إبراهیم",
+          "bookName": "الخلاصة للحلي1/100",
+          "url": "https://noorlib.ir/book/view/1472?volumeNumber=1&sectionNumber=2&pageNumber=100&viewType=html"
+         },
+         {
+          "raviTitle": "علی بن محمد بن إبراهیم",
+          "bookName": "رجال النجاشي1/260",
+          "url": ""
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "raviId": 5480
+   },
+   {
+    "raviId": 5717,
+    "infoList": [
+     {
+      "title": "لقب",
+      "text": [
+       {
+        "text": "الأعور",
+        "bookName": [
+         {
+          "bookName": "رجال الطوسي"
+         }
+        ]
+       },
+       {
+        "text": "الكليني",
+        "bookName": [
+         {
+          "bookName": "النجاشي"
+         },
+         {
+          "bookName": "الفهرست للطوسي"
+         },
+         {
+          "bookName": "رجال الطوسي"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "title": "کنيه",
+      "text": [
+       {
+        "text": "أبو جعفر",
+        "bookName": [
+         {
+          "bookName": "النجاشي"
+         },
+         {
+          "bookName": "الفهرست للطوسي"
+         },
+         {
+          "bookName": "رجال الطوسي"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "title": "وفات",
+      "text": [
+       {
+        "text": "سنة تسع و عشرين و ثلاثمائة",
+        "bookName": [
+         {
+          "bookName": "النجاشي"
+         },
+         {
+          "bookName": "رجال الطوسي"
+         }
+        ]
+       },
+       {
+        "text": "سنة ثمان و عشرين و ثلاثمائة",
+        "bookName": [
+         {
+          "bookName": "الفهرست للطوسي"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "infoList2": [
+     {
+      "title": " نتيجه ارزيابي",
+      "text": "امامي, ثقة"
+     },
+     {
+      "title": "جمع بندي ارزيابي",
+      "text": "إمامي‌,ثقة جليل"
+     },
+     {
+      "title": "الفاظ جرح و تعدیل",
+      "text": [
+       {
+        "text": "ثقة",
+        "bookName": [
+         {
+          "raviTitle": "محمد بن یعقوب الکلینی",
+          "bookName": "الفهرست للطوسي1/393",
+          "url": "https://noorlib.ir/book/view/10023?volumeNumber=1&sectionNumber=2&pageNumber=393&viewType=html"
+         }
+        ]
+       },
+       {
+        "text": "ثقة ثبت",
+        "bookName": [
+         {
+          "raviTitle": "محمد بن یعقوب بن إسحاق",
+          "bookName": "الخلاصة للحلي1/145",
+          "url": "https://noorlib.ir/book/view/1472?volumeNumber=1&sectionNumber=2&pageNumber=145&viewType=html"
+         },
+         {
+          "raviTitle": "محمد بن یعقوب بن إسحاق",
+          "bookName": "رجال النجاشي1/377",
+          "url": ""
+         }
+        ]
+       },
+       {
+        "text": "ممدوح",
+        "bookName": [
+         {
+          "raviTitle": "محمد بن یعقوب الکلینی",
+          "bookName": "رجال الطوسي1/439",
+          "url": ""
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "raviId": 24694,
+    "infoList": [
+     {
+      "title": "لقب",
+      "text": [
+       {
+        "text": "الأسدي",
+        "bookName": [
+         {
+          "bookName": "الفهرست للطوسي"
+         },
+         {
+          "bookName": "رجال الطوسي"
+         },
+         {
+          "bookName": "النجاشي"
+         }
+        ]
+       },
+       {
+        "text": "الرازي",
+        "bookName": [
+         {
+          "bookName": "رجال الطوسي"
+         }
+        ]
+       },
+       {
+        "text": "الكوفي",
+        "bookName": [
+         {
+          "bookName": "النجاشي"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "title": "کنيه",
+      "text": [
+       {
+        "text": "أبو الحسين",
+        "bookName": [
+         {
+          "bookName": "الفهرست للطوسي"
+         },
+         {
+          "bookName": "رجال الطوسي"
+         },
+         {
+          "bookName": "النجاشي"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "title": "وفات",
+      "text": [
+       {
+        "text": "312،اثنتي عشرة و ثلاثمائة",
+        "bookName": [
+         {
+          "bookName": "النجاشي"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "infoList2": [
+     {
+      "title": " نتيجه ارزيابي",
+      "text": "امامي, ثقة"
+     },
+     {
+      "title": "جمع بندي ارزيابي",
+      "text": "إمامي لكن في النجاشي:إنه كان يقول بالجبر والثشبيه,ثقة جليل"
+     },
+     {
+      "title": "الفاظ جرح و تعدیل",
+      "text": [
+       {
+        "text": "ثقة صحيح الحديث إلا أنه روى عن الضعفاء",
+        "bookName": [
+         {
+          "raviTitle": "محمد بن جعفر بن محمد",
+          "bookName": "رجال النجاشي1/373",
+          "url": ""
+         }
+        ]
+       },
+       {
+        "text": "متوقف فيه",
+        "bookName": [
+         {
+          "raviTitle": "محمد بن جعفر بن محمد",
+          "bookName": "الخلاصة للحلي1/160",
+          "url": "https://noorlib.ir/book/view/1472?volumeNumber=1&sectionNumber=2&pageNumber=160&viewType=html"
+         }
+        ]
+       },
+       {
+        "text": "وكيل",
+        "bookName": [
+         {
+          "raviTitle": "محمد بن جعفر الأسدی",
+          "bookName": "رجال الطوسي1/439",
+          "url": ""
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "raviId": 35635,
+    "infoList2": [
+     {
+      "title": " نتيجه ارزيابي",
+      "text": "امامي, ثقة"
+     },
+     {
+      "title": "جمع بندي ارزيابي",
+      "text": "إمامي‌,ثقة على التحقيق"
+     }
+    ]
+   }
+  ]
+ },
+ "totalCount": 0,
+ "statusCode": 200,
+ "message": "عملیات با موفقیت انجام شد",
+ "exception": null,
+ "validationMessages": null
+}

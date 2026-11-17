@@ -1,0 +1,61 @@
+{
+ "isSuccess": true,
+ "data": [
+  {
+   "id": "59714",
+   "sourceMainTitle": "ترجمه اصول کافی",
+   "sourceShortTitle": "اصول کافی / ترجمه مصطفوی",
+   "authorTitle": "کلینی، محمد بن یعقوب",
+   "hadithId": "105542",
+   "text": "<Translation><P> امام صادق عليه السّلام فرمايد: امير المؤمنين صلوات اللّٰه عليه ميفرمود: بهترين عبادت عفت است.</P></Translation>",
+   "shortText": "<Translation><P> امام صادق عليه السّلام فرمايد: امير المؤمنين صلوات اللّٰه عليه ميفرمود: بهترين عبادت عفت است.</P></Translation>",
+   "isShorted": false,
+   "sourceId": 2646,
+   "vol": 3,
+   "pageNum": 125,
+   "commentCount": 0,
+   "languageId": 1,
+   "insertDate": "2019-03-18T20:40:52.047Z",
+   "noorLibLink": "https://www.noorlib.ir/View/Fa/Book/BookView/Text/3710/1/125?paragId=87620670"
+  },
+  {
+   "id": "59715",
+   "sourceMainTitle": "ترجمه اصول کافی",
+   "sourceShortTitle": "اصول كافى / ترجمه كمره اى",
+   "authorTitle": "کلینی، محمد بن یعقوب",
+   "hadithId": "105542",
+   "text": "<Translation><P>3-أمير المؤمنين(عليه السّلام)مى‌فرمود: بهترين عبادت با عفّتى است.</P></Translation>",
+   "shortText": "<Translation><P>3-أمير المؤمنين(عليه السّلام)مى‌فرمود: بهترين عبادت با عفّتى است.</P></Translation>",
+   "isShorted": false,
+   "sourceId": 2647,
+   "vol": 4,
+   "pageNum": 241,
+   "commentCount": 0,
+   "languageId": 1,
+   "insertDate": "2019-03-18T20:40:52.047Z",
+   "noorLibLink": "https://www.noorlib.ir/View/Fa/Book/BookView/Text/3715/1/241"
+  },
+  {
+   "id": "59716",
+   "sourceMainTitle": "ترجمه اصول کافی",
+   "sourceShortTitle": "اصول کافی / ترجمه آیت اللهی",
+   "authorTitle": "کلینی، محمد بن یعقوب",
+   "hadithId": "105542",
+   "text": "<Translation><P> 3-امير المؤمنين عليه السّلام مى‌فرمود:بهترين عبادت عفّت است.<BR/> *** </P></Translation>",
+   "shortText": "<Translation><P> 3-امير المؤمنين عليه السّلام مى‌فرمود:بهترين عبادت عفّت است.<BR/> *** </P></Translation>",
+   "isShorted": false,
+   "sourceId": 14929,
+   "vol": 3,
+   "pageNum": 227,
+   "commentCount": 0,
+   "languageId": 1,
+   "insertDate": "2019-03-18T20:40:52.047Z",
+   "noorLibLink": "https://www.noorlib.ir/View/Fa/Book/BookView/Text/18517/2/227?paragId=201687393"
+  }
+ ],
+ "totalCount": 0,
+ "statusCode": 200,
+ "message": "عملیات با موفقیت انجام شد",
+ "exception": null,
+ "validationMessages": null
+}

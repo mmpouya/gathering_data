@@ -1,0 +1,27 @@
+{
+ "isSuccess": true,
+ "data": [
+  {
+   "id": "190399",
+   "sourceMainTitle": "مرآة العقول في شرح أخبار آل الرسول",
+   "sourceShortTitle": "مرآة العقول",
+   "authorTitle": "مجلسی، محمدباقر بن محمدتقی",
+   "hadithId": "105542",
+   "text": "<P>: ضعيف، و يمكن حمل العفاف هنا على ما يشمل ترك جميع المحرمات.</P>",
+   "shortText": "",
+   "isShorted": false,
+   "sourceId": 3636,
+   "vol": 8,
+   "pageNum": 67,
+   "commentCount": 0,
+   "languageId": 1,
+   "insertDate": "2019-03-18T20:40:52.053Z",
+   "noorLibLink": "https://www.noorlib.ir/View/Fa/Book/BookView/Text/5288/1/67"
+  }
+ ],
+ "totalCount": 0,
+ "statusCode": 200,
+ "message": "عملیات با موفقیت انجام شد",
+ "exception": null,
+ "validationMessages": null
+}

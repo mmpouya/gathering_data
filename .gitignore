@@ -8,3 +8,8 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Crawler databases
+*.db
+*.db-wal
+*.db-shm
