@@ -547,6 +547,13 @@ def write_group_members(
     for row in rows:
         grouped.setdefault(row["group_id"], []).append(row)
     for group_id, members in grouped.items():
+        existing = conn.execute(
+            "SELECT COUNT(*) FROM hadith_group_members WHERE group_id = ?",
+            (group_id,),
+        ).fetchone()[0]
+        if existing > len(members):
+            # A partial payload must never shrink a group already stored whole.
+            continue
         conn.execute(
             "DELETE FROM hadith_group_members WHERE group_id = ?", (group_id,)
         )

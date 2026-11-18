@@ -115,6 +115,7 @@ Notes:
 | Tab / data | API |
 |---|---|
 | Main hadith, source, volume, page, qael, toc path, group members | `POST /api/elastic/ElasticHadithById` |
+| Bulk main hadith, qael, group members (no toc path) | `POST /api/elastic/v2/ElasticHadithList` |
 | Translations | `GET /api/hadith/TranslateList?hadithId=` |
 | Explanations (`شرح`) | `GET /api/hadith/ExplanationList?hadithId=` |
 | Rejal / sanad chains | `GET /api/hadith/HadithRejalList/v2?hadithId=` |
@@ -179,14 +180,15 @@ uv run python -m crawl_hadith crawl      # fills translate/explanation/rejal
 - Resume lives in `source_seed`: one row per book, `next_page` advances only
   after a page is committed, and a failed book is retried on the next run.
 - A page returns the full record (text, source, book, volume, page, author,
-  qael list, group id, translate/explanation counts), so main rows are written
-  as `done` with their counts.
+  qael list, translate/explanation counts), so main rows are written as `done`
+  with their counts. The request sets `isGroup: true`, so `groupTogetherList`
+  comes back too and `hadith_group_members` is filled from the same pages.
 - It covers the whole corpus in ~7,900 requests instead of 393k, and it also
   discovers IDs that are missing from the sitemap.
-- **Gap:** list items carry no `tocInfo` and no group links, so `hadith_toc` and
-  `hadith_group_members` stay empty for these rows. Those columns need a
-  separate by-id pass once the quota allows it (reset `main_state` to `pending`
-  for the rows to revisit).
+- **Gap:** list items carry no `tocInfo`, so `hadith_toc` stays empty for these
+  rows and `v_same_toc_hadith` cannot derive same-chapter links. Those columns
+  need a separate chapter pass (the list endpoint accepts `tocInfo: [tocId]`)
+  or a by-id pass once the quota allows it.
 - Translations, explanations, and rejal are not fetched in bulk mode; the
   following plain `crawl` run fills them stage by stage.
 

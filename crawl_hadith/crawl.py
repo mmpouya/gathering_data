@@ -441,9 +441,9 @@ def bulk_crawl(conn: Any, client: Client) -> int:
     """Write hadiths book by book from the list endpoint.
 
     The by-id endpoint is quota-capped (HTTP 430) while the list endpoint keeps
-    working and returns the same fields, minus ``tocInfo`` and group links. Each
-    item is saved as ``done`` with its translate/explanation counts, so a later
-    ``crawl`` run fills those stages and rejal per hadith.
+    working and returns the same fields, minus ``tocInfo``. Each item is saved
+    as ``done`` with its translate/explanation counts and group members, so a
+    later ``crawl`` run fills those stages and rejal per hadith.
     """
     db.init_source_seed(conn)
     conn.commit()

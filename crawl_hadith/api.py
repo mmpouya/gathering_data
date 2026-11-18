@@ -498,7 +498,7 @@ class Client:
     def source_hadith_page(
         self, source_id: int, page: int, page_size: int = 50
     ) -> dict[str, Any]:
-        """One page of a book, with every field the by-id endpoint returns."""
+        """One page of a book, with group links (``isGroup``) but no ``tocInfo``."""
         payload = self._request(
             "/api/elastic/v2/ElasticHadithList",
             method="POST",
@@ -514,6 +514,7 @@ class Client:
                 "searchIn": "hadith",
                 "text": "",
                 "bookId": source_id,
+                "isGroup": True,
             },
         )
         data = payload.get("data")

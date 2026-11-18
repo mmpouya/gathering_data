@@ -70,9 +70,10 @@ tests/
 5. `crawl.bulk_crawl()` (`--bulk`) pages
    `POST /api/elastic/v2/ElasticHadithList` per book instead, saving each item
    through the same `save_bundle()` with `main=done`; resume is tracked in
-   `source_seed.next_page`. It is the fallback for the by-id quota cap and does
-   not write `hadith_toc`/`hadith_group_members` (list items carry no
-   `tocInfo`/group links).
+   `source_seed.next_page`. It is the fallback for the by-id quota cap: list
+   items carry no `tocInfo` (so `hadith_toc` stays empty), but the request sends
+   `isGroup: true`, so `groupTogetherList` comes back and group members are
+   written from the same pages.
 6. `status` prints table counts and stage-state histograms.
 
 Proxy rotation is optional and outside the crawl pipeline: `api.Client` accepts
@@ -125,7 +126,10 @@ four independent states in `crawl_status`:
 `ElasticStatistics`, `ElasticHadithById`, `HadithById`, `TranslateList`,
 `ExplanationList`, `HadithRejalList/v2`, `HadithRejalList`, and
 `ElasticHadithList`. `README.md` documents the API-to-table mapping and useful
-SQL queries; treat it as the user-facing reference.
+SQL queries; treat it as the user-facing reference. `ElasticHadithList` also
+accepts `tocInfo: [tocId]` to filter by chapter and `isGroup: true` to include
+`groupTogetherList`; its page size is capped at 50. `TocListBySource` and
+`TocListByToc` return the chapter tree.
 
 ## Development & Tooling Commands
 
@@ -253,6 +257,8 @@ Any agent working in this repository must:
 ## Session Log
 
 <!-- Newest entry first. Append-only; do not modify older entries. -->
+
+- 2026-11-18 - Bulk group links: `api.source_hadith_page` now sends `isGroup: true`, so `ElasticHadithList` returns `groupTogetherList` and bulk mode fills `hadith_group_members`/`group_hadith_count` from the same pages; added a never-shrink guard in `db.write_group_members` (a partial payload cannot delete a larger stored group), `test_list_request_asks_for_groups`, and group assertions in the bulk test. Verified live on scratch DB book 628: 1,378 hadiths, 4,775 group rows, 1,378 groups, 0 toc rows; 23 offline tests pass. Pending: toc only - test whether `ElasticHadithById` accepts batched `hadithId` when its 430 quota clears; otherwise a chapter pass (`tocInfo: [tocId]` + `TocListBySource`/`TocListByToc`) is the fallback.
 
 - 2026-11-18 - Option B bulk path: added `api.Client.source_hadith_page` (`/api/elastic/v2/ElasticHadithList`, `bookId`, 50/page; `source_hadith_ids` now wraps it) and `crawl.bulk_crawl` (`--bulk`) that saves each list item via `save_bundle` as `main=done`, resuming per book from `source_seed.next_page`; CLI branches to it and skips `crawl`. Deep paging verified to the last page of the largest book (70,018 hadiths). Smoke-tested book 628 against the live API on a scratch DB: 1,386/1,386 hadiths with source, text, qael, counts, cursor at page 29; 22 offline tests pass. Known gap: list items have no `tocInfo`/group links, so `hadith_toc` and `hadith_group_members` stay empty for bulk rows; by-id is still capped. Pending: run `crawl --bulk` on `hadith.db`, then plain `crawl` for translate/explanation/rejal.
 

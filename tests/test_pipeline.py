@@ -326,6 +326,27 @@ class PipelineTest(unittest.TestCase):
         self.assertIsNone(payload["data"])
         self.assertEqual(mocked.call_count, 1)
 
+    def test_list_request_asks_for_groups(self) -> None:
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self) -> bytes:
+                return b'{"data": {"hadithCount": 0, "resultList": []}}'
+
+        client = api.Client(retries=1, backoff=0)
+        with mock.patch.object(
+            api.urllib.request, "urlopen", return_value=FakeResponse()
+        ) as mocked:
+            payload = client.source_hadith_page(628, 1)
+        body = json.loads(mocked.call_args.args[0].data)
+        self.assertTrue(body["isGroup"])
+        self.assertEqual(body["bookId"], 628)
+        self.assertEqual(payload, {"hadithCount": 0, "resultList": []})
+
     def test_bulk_crawl_saves_list_items_and_resumes(self) -> None:
         self.conn.execute("DELETE FROM crawl_status")
         self.conn.execute("DELETE FROM source_seed")
@@ -360,6 +381,13 @@ class PipelineTest(unittest.TestCase):
                 )
             ]
             self.assertEqual(states, ["done", "done"])
+            self.assertEqual(
+                self.conn.execute(
+                    "SELECT COUNT(*) FROM hadith_group_members "
+                    "WHERE group_id = 3077 AND hadith_id = 105542"
+                ).fetchone()[0],
+                1,
+            )
 
             failed = crawl.bulk_crawl(self.conn, FakeListClient())
 
