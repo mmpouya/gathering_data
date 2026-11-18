@@ -16,3 +16,6 @@ wheels/
 
 # Run logs
 *.log
+
+# Generated proxy pool list
+proxies.txt

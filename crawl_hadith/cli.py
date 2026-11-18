@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 from . import db
-from .api import ApiError, Client
+from .api import ApiError, Client, load_proxies, normalize_proxies
 from .crawl import crawl, ensure_initialized, full_seed
 
 
@@ -88,13 +88,25 @@ def _build_parser() -> argparse.ArgumentParser:
         "--delay",
         type=float,
         default=0.2,
-        help="delay before each request per worker (default 0.2s)",
+        help="delay before each request, per proxy when a pool is used (default 0.2s)",
     )
     crawl_parser.add_argument(
         "--retries", type=int, default=5, help="request attempts before fallback"
     )
     crawl_parser.add_argument(
         "--timeout", type=float, default=60.0, help="request timeout in seconds"
+    )
+    crawl_parser.add_argument(
+        "--proxy",
+        action="append",
+        default=[],
+        metavar="URL",
+        help="HTTP proxy URL; repeat to rotate a pool (e.g. http://127.0.0.1:12081)",
+    )
+    crawl_parser.add_argument(
+        "--proxies-file",
+        type=Path,
+        help="file with one HTTP proxy URL per line; '#' comments are ignored",
     )
     crawl_parser.add_argument("--limit", type=int, help="maximum rows to process")
     crawl_parser.add_argument(
@@ -208,12 +220,20 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "crawl":
+            try:
+                proxies = list(args.proxy)
+                if args.proxies_file:
+                    proxies.extend(load_proxies(args.proxies_file))
+                proxies = normalize_proxies(proxies)
+                client = Client(
+                    timeout=args.timeout,
+                    retries=args.retries,
+                    delay=args.delay,
+                    proxies=proxies,
+                )
+            except (OSError, ValueError) as exc:
+                parser.error(str(exc))
             conn = db.connect(db_path)
-            client = Client(
-                timeout=args.timeout,
-                retries=args.retries,
-                delay=args.delay,
-            )
             try:
                 ensure_initialized(conn, client, seed=args.ids is None)
                 if args.full_seed:

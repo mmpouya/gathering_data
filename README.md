@@ -43,9 +43,11 @@ Useful flags for `crawl`:
 |---|---|
 | `--db PATH` | SQLite file (default `hadith.db`) |
 | `--workers N` | Parallel HTTP workers (default 2) |
-| `--delay SEC` | Delay before each request in each worker (default 0.2) |
+| `--delay SEC` | Delay before each request (default 0.2; per proxy when a pool is used) |
 | `--retries N` | Attempts per request before fallback (default 5) |
 | `--timeout SEC` | Per-request timeout (default 60) |
+| `--proxy URL` | HTTP proxy URL; repeat for a rotating pool |
+| `--proxies-file PATH` | File with one HTTP proxy URL per line (`#` comments ignored) |
 | `--limit N` | Process at most N pending/failed rows |
 | `--ids A,B,C` | Process only these IDs; skips sitemap seeding |
 | `--full-seed` | Scan all source books to discover missing IDs |
@@ -61,6 +63,51 @@ Every `crawl` and `status` run appends to a `.log` file next to the database:
 Each run starts with the command, working directory, database path, and log
 path, then captures progress, warnings, errors, and the final status table.
 Log files are git-ignored.
+
+## Proxy rotation (NekoRay)
+
+The service rate-limits by exit IP. `crawl` can rotate a pool of HTTP proxies;
+each proxy is paced separately, at most one request is in flight per proxy, and
+a proxy that returns 429/403 cools down (honoring `Retry-After`) while another
+one is used. On 429 the main/rejal fallback endpoints are skipped, so a
+throttled request is not retried against a second endpoint on the same IP.
+
+NekoRay runs one active profile per process. The bundled Windows helper starts
+one isolated NekoRay instance per profile, each with its own local ports:
+
+```powershell
+# Show profile IDs and names
+uv run python -m crawl_hadith.nekoray_pool list
+
+# Start four verified exits (DE-PP, DE-YT, TR, AL) and probe their exit IPs
+uv run python -m crawl_hadith.nekoray_pool start --profiles 0,3,6,22 --elevate
+
+# Crawl through the generated list
+uv run python -m crawl_hadith crawl --proxies-file proxies.txt --workers 4 --delay 0.5
+
+# Stop the pool
+uv run python -m crawl_hadith.nekoray_pool stop --elevate
+```
+
+`--elevate` triggers one UAC prompt for the whole batch; all child NekoRay
+processes inherit it. For zero prompts, open an elevated terminal once, run
+`start --print-task`, then run the printed `schtasks` command in that same
+terminal. It registers a highest-privilege logon task; afterwards the pool
+starts silently (or via `schtasks /Run /TN NekoRayPool`).
+
+Notes:
+
+- NekoRay's `nekoray.exe` requires administrator rights, so the helper must run
+  elevated. The crawler itself does not.
+- The helper copies NekoRay's config into
+  `%LOCALAPPDATA%\crawl_hadith\nekoray-pool`; it does not modify the main
+  instance or its TUN/system-proxy settings.
+- Only HTTP proxies are supported (stdlib `urllib` has no SOCKS support). Use
+  the HTTP inbound port (`2081` on the main instance), not the SOCKS port.
+- Only four unique exit IPs were found among the current NekoRay profiles;
+  more profiles do not create more rate-limit budget.
+- Start with `--workers 4 --delay 0.5` and lower the delay only if 429s stay
+  away. `--delay` is per proxy when a pool is used.
 
 ## Data collected
 
@@ -84,7 +131,12 @@ and `rejal`. Every stage is in one of these states:
 `pending`, `done`, `fallback`, `failed`, `skipped`, `missing`.
 
 - Requests retry with exponential backoff on timeouts, HTTP 403/429/5xx, and
-  application-level 403/500 responses.
+  application-level 403/500 responses. With a proxy pool, a 429/403 puts that
+  proxy on cooldown and the request retries through another one; `Retry-After`
+  is honored.
+- A 429 skips the main `HadithById` fallback and the rejal v1 fallback. Both
+  endpoints share the same IP and limit, so retrying them only adds load; the
+  stage stays `failed` for the next run.
 - The main endpoint falls back to `GET /api/hadith/HadithById?id=`. That legacy
   endpoint has core text but no group/toc IDs, so the stage becomes `fallback`.
   Running with `--enrich-fallback` later tries the primary endpoint again.
@@ -162,8 +214,12 @@ ORDER BY s.sanad_index, s.segment_order, r.ravi_index;
 - A full crawl makes roughly 0.8–1.6 million requests and can take hours to
   days depending on worker count and server responses.
 - The database will be multiple gigabytes for a full crawl.
-- Rate limiting is intentionally not solved here. Retries and fallback make
-  progress recoverable, but aggressive `--workers` values may trigger 403s.
+- Rate limiting is handled with an optional HTTP proxy pool
+  (`--proxies-file`) and per-proxy cooldowns. The current NekoRay subscription
+  exposes only four distinct exit IPs, so the gain is bounded; if the service
+  throttles globally, rotation will not help. See "Proxy rotation (NekoRay)".
+- Aggressive `--workers` values can still trigger 429s; use `--delay` to pace
+  each proxy.
 - Related/similar hadiths, Noorlib/Noormags tabs, and `HadithInBook` listings
   are not stored. `HadithInBook` is derivable from source/volume/page; the
   other tabs are outside the agreed scope.

@@ -37,6 +37,7 @@ crawl_hadith/
   crawl.py                  Orchestration: seeding, fetch bundles, fallback, save.
   db.py                     SQLite connection, schema bootstrap, all SQL writes.
   schema.sql                Tables, indexes, stage-state checks, same-toc views.
+  nekoray_pool.py           Windows-only helper: isolated NekoRay instances -> proxy list.
 tests/
   test_pipeline.py          Offline unittest suite using recorded fixtures.
   fixtures/*.json           Recorded API responses for hadith IDs 105540/105542.
@@ -51,6 +52,7 @@ tests/
 | `db.py` | Connection pragmas, schema versioning, upserts, stage-state transitions, row writes | HTTP, response-shape decisions |
 | `crawl.py` | Seeding strategies, per-hadith stage orchestration/fallback, worker pool, transactional save | Raw HTTP calls, raw SQL details |
 | `cli.py` | Argument parsing, logging config, user-facing progress/status, exit codes | Business logic |
+| `nekoray_pool.py` | Windows-only NekoRay instance pool: profile discovery, isolated config copies, launch/stop, exit-IP probe | SQLite, crawl data |
 
 ### Control flow
 
@@ -66,6 +68,11 @@ tests/
 4. `crawl.crawl()` selects IDs from `crawl_status`, fetches chunks of at least 16
    IDs with `ThreadPoolExecutor`, and calls `save_bundle()` in the main thread.
 5. `status` prints table counts and stage-state histograms.
+
+Proxy rotation is optional and outside the crawl pipeline: `api.Client` accepts
+a proxy list, and `nekoray_pool.py` starts one isolated NekoRay instance per
+profile and writes a list for `--proxies-file`. The helper is Windows-only and
+requires elevation because `nekoray.exe` does.
 
 ### Per-hadith stage model
 
@@ -135,6 +142,11 @@ uv run python -m crawl_hadith status
 # Retry primary endpoints for rows that used fallback
 uv run python -m crawl_hadith crawl --enrich-fallback
 
+# Rotate exit IPs through isolated NekoRay instances (Windows, one UAC prompt)
+uv run python -m crawl_hadith.nekoray_pool start --profiles 0,3,6,22 --elevate
+uv run python -m crawl_hadith crawl --proxies-file proxies.txt --workers 4 --delay 0.5
+uv run python -m crawl_hadith.nekoray_pool stop --elevate
+
 # Discover IDs missing from the sitemap (slow, ~61k listing requests)
 uv run python -m crawl_hadith crawl --full-seed
 
@@ -148,9 +160,10 @@ uv run python -m unittest discover -s tests -k test_ingest_and_idempotent -v
 uv run python -m compileall -q crawl_hadith tests
 ```
 
-Crawl flags: `--db`, `--workers` (default 2), `--delay` (default 0.2 s),
-`--retries` (default 5), `--timeout` (default 60 s), `--limit`, `--ids`,
-`--full-seed`, `--enrich-fallback`.
+Crawl flags: `--db`, `--workers` (default 2), `--delay` (default 0.2 s, per
+proxy when a pool is used), `--retries` (default 5), `--timeout` (default 60 s),
+`--proxy`, `--proxies-file`, `--limit`, `--ids`, `--full-seed`,
+`--enrich-fallback`.
 
 There is **no** lint, format, type-check, build, or CI configuration in the
 repo. Match surrounding style and keep the stdlib-only constraint.
@@ -187,6 +200,9 @@ repo. Match surrounding style and keep the stdlib-only constraint.
   Let truly unexpected bugs surface through the worker exception guard and
   `logger.exception`. Fast paths (404) are not retried; 403/408/425/429/5xx,
   timeouts, connection errors, and application-level 403/500 messages are.
+  429s become `RateLimited`: with a proxy pool the proxy cools down (honoring
+  `Retry-After`) and another is used; `fetch_bundle` skips the fallback
+  endpoint on 429 so one throttled request does not become several.
 - **Parsing defensiveness:** use the `as_*` helpers; skip malformed list items
   instead of aborting a whole crawl. `parse_hadith` and
   `parse_fallback_hadith` may raise `ValueError` when the payload lacks an ID.
@@ -225,5 +241,6 @@ Any agent working in this repository must:
 
 <!-- Newest entry first. Append-only; do not modify older entries. -->
 
+- 2026-11-18 - Proxy rotation and 429 handling: added `RateLimited`, HTTP proxy pool with per-proxy pacing/cooldown and `Retry-After` in `api.py`, skip main/rejal fallbacks on 429 in `crawl.py`, `--proxy`/`--proxies-file` in `cli.py`, Windows `nekoray_pool.py` helper (isolated instances, profile selection, exit-IP probe, `--elevate`/`--print-task`), tests, README/.gitignore; verified 19 offline tests pass and a live single-request check through NekoRay's HTTP port 2081. Pending: tune `--workers`/`--delay` on a real run; only four exit IPs were distinct (profiles 0/3/6/22).
 - 2026-11-18 - Per-run logging: added appended `<db>.log` files in `cli.py` via a stdout/stderr tee and configured logger, recording each command, cwd, db path, progress, status, errors, and run end; added `test_cli_appends_run_log_with_command`, README logging docs, and `*.log` ignore. Verification: 9 offline tests pass. Pending: none.
 - 2026-11-18 - Repository indexing and AGENTS.md creation: inspected all source modules, `schema.sql`, CLI, tests, fixtures, README, git state, and current DB crawl status; verified all 8 offline tests pass; documented architecture, commands, and invariants. Pending: none.

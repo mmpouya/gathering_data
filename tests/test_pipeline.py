@@ -5,6 +5,7 @@ import io
 import json
 import tempfile
 import unittest
+import urllib.error
 from pathlib import Path
 from unittest import mock
 
@@ -371,6 +372,174 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(text.count("===== run end ====="), 2)
         self.assertEqual(text.count("command: crawl-hadith status --db"), 2)
         self.assertIn("hadiths=", text)
+
+
+class ProxyTest(unittest.TestCase):
+    class FakeResponse:
+        def __init__(self, payload: bytes) -> None:
+            self.payload = payload
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self) -> bytes:
+            return self.payload
+
+    @staticmethod
+    def opener_factory(used: list[str], fail: dict[str, int] | None = None):
+        fail = fail or {}
+
+        def build(handler):
+            url = handler.proxies["https"]
+
+            class Opener:
+                def open(self, request, timeout=None):
+                    used.append(url)
+                    code = fail.get(url)
+                    if code:
+                        raise urllib.error.HTTPError(
+                            request.full_url,
+                            code,
+                            "Too Many Requests",
+                            {"Retry-After": "0"},
+                            None,
+                        )
+                    return ProxyTest.FakeResponse(
+                        b'{"isSuccess": true, "data": 1}'
+                    )
+
+            return Opener()
+
+        return build
+
+    def test_normalize_proxies(self) -> None:
+        self.assertEqual(
+            api.normalize_proxy("127.0.0.1:12081"),
+            "http://127.0.0.1:12081",
+        )
+        self.assertEqual(
+            api.normalize_proxies(
+                ["127.0.0.1:1", "http://127.0.0.1:1", "127.0.0.1:2"]
+            ),
+            ["http://127.0.0.1:1", "http://127.0.0.1:2"],
+        )
+        with self.assertRaises(ValueError):
+            api.normalize_proxy("socks5://127.0.0.1:1080")
+        with self.assertRaises(ValueError):
+            api.normalize_proxy("127.0.0.1")
+
+    def test_load_proxies_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            path = Path(tempdir) / "proxies.txt"
+            path.write_text(
+                "# local NekoRay\n127.0.0.1:12081\n\n"
+                "http://127.0.0.1:12083\n127.0.0.1:12081\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                api.load_proxies(path),
+                ["http://127.0.0.1:12081", "http://127.0.0.1:12083"],
+            )
+
+    def test_proxy_round_robin(self) -> None:
+        used: list[str] = []
+        with mock.patch.object(
+            api.urllib.request, "build_opener", side_effect=self.opener_factory(used)
+        ):
+            client = api.Client(
+                proxies=["http://127.0.0.1:1", "http://127.0.0.1:2"],
+                backoff=0,
+            )
+            self.assertEqual(client._request("/a")["data"], 1)
+            self.assertEqual(client._request("/b")["data"], 1)
+        self.assertEqual(used, ["http://127.0.0.1:1", "http://127.0.0.1:2"])
+
+    def test_429_cools_proxy_and_uses_next(self) -> None:
+        used: list[str] = []
+        with mock.patch.object(
+            api.urllib.request,
+            "build_opener",
+            side_effect=self.opener_factory(
+                used, fail={"http://127.0.0.1:1": 429}
+            ),
+        ):
+            client = api.Client(
+                proxies=["http://127.0.0.1:1", "http://127.0.0.1:2"],
+                retries=2,
+                backoff=0,
+            )
+            self.assertEqual(client._request("/a")["data"], 1)
+            self.assertEqual(client._request("/b")["data"], 1)
+        self.assertEqual(
+            used,
+            ["http://127.0.0.1:1", "http://127.0.0.1:2", "http://127.0.0.1:2"],
+        )
+
+    def test_retry_after_header(self) -> None:
+        exc = urllib.error.HTTPError(
+            "http://example", 429, "too many", {"Retry-After": "12"}, None
+        )
+        self.assertEqual(api.Client._retry_after(exc), 12.0)
+        exc = urllib.error.HTTPError(
+            "http://example", 429, "too many", {"Retry-After": "soon"}, None
+        )
+        self.assertEqual(
+            api.Client._retry_after(exc), api.DEFAULT_RATE_LIMIT_COOLDOWN
+        )
+
+    def test_rate_limited_skips_main_fallback(self) -> None:
+        class FakeClient:
+            fallback_called = False
+
+            def hadith_detail(self, hadith_id):
+                raise api.RateLimited("HTTP 429", 30)
+
+            def hadith_detail_fallback(self, hadith_id):
+                self.fallback_called = True
+                return {"hadithId": hadith_id}
+
+        row = {
+            "hadith_id": 1,
+            "main_state": "pending",
+            "translate_state": "pending",
+            "explanation_state": "pending",
+            "rejal_state": "pending",
+            "translate_count": None,
+            "explanation_count": None,
+        }
+        client = FakeClient()
+        bundle = crawl.fetch_bundle(client, row)
+        self.assertEqual(bundle.stages["main"].state, "failed")
+        self.assertFalse(client.fallback_called)
+        self.assertEqual(set(bundle.stages), {"main"})
+
+    def test_rate_limited_skips_rejal_fallback(self) -> None:
+        class FakeClient:
+            fallback_called = False
+
+            def rejal(self, hadith_id):
+                raise api.RateLimited("HTTP 429", 30)
+
+            def rejal_fallback(self, hadith_id):
+                self.fallback_called = True
+                return {"data": {}}
+
+        row = {
+            "hadith_id": 1,
+            "main_state": "done",
+            "translate_state": "done",
+            "explanation_state": "done",
+            "rejal_state": "pending",
+            "translate_count": 0,
+            "explanation_count": 0,
+        }
+        client = FakeClient()
+        bundle = crawl.fetch_bundle(client, row)
+        self.assertEqual(bundle.stages["rejal"].state, "failed")
+        self.assertFalse(client.fallback_called)
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import db, parse
-from .api import ApiError, Client, SITE_URL
+from .api import SITE_URL, ApiError, Client, RateLimited
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +61,12 @@ def fetch_bundle(client: Client, row: Any, *, enrich: bool = False) -> Bundle:
         primary_error: BaseException | None = None
         try:
             main_data = client.hadith_detail(hadith_id)
+        except RateLimited as exc:
+            # Both main endpoints share the same IP and limit; do not double
+            # the request volume while the service is throttling us.
+            state = "fallback" if main_state == "fallback" else "failed"
+            bundle.stages["main"] = StageResult(state, None, str(exc))
+            return bundle
         except ApiError as exc:
             primary_error = exc
             main_data = None
@@ -174,6 +180,10 @@ def fetch_bundle(client: Client, row: Any, *, enrich: bool = False) -> Bundle:
         primary_error = None
         try:
             payload = client.rejal(hadith_id)
+        except RateLimited as exc:
+            # Skip the v1 fallback: same IP, same limit, extra requests.
+            state = "fallback" if row["rejal_state"] == "fallback" else "failed"
+            bundle.stages["rejal"] = StageResult(state, None, str(exc))
         except ApiError as exc:
             primary_error = exc
         else:
@@ -388,7 +398,9 @@ def full_seed(conn: Any, client: Client) -> int:
                 if not ids:
                     break
                 db.seed_ids(conn, ids)
-                db.set_source_seed(conn, source_id, status="pending", next_page=page + 1)
+                db.set_source_seed(
+                    conn, source_id, status="pending", next_page=page + 1
+                )
                 conn.commit()
                 page += 1
             else:
