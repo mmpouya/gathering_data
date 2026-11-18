@@ -52,6 +52,14 @@ class RateLimited(ApiError):
         self.retry_after = max(0.0, retry_after)
 
 
+class MaxLimit(Exception):
+    """The service's query quota is exhausted; every request fails until it resets.
+
+    Not an ``ApiError``: stage code catches ``ApiError`` and degrades to the
+    fallback endpoint, which would hide a blocked run as "fallback" data.
+    """
+
+
 def normalize_proxy(value: str) -> str:
     """Accept ``host:port`` or an HTTP proxy URL; reject SOCKS (stdlib cannot)."""
     value = value.strip()
@@ -270,6 +278,10 @@ class Client:
             except urllib.error.HTTPError as exc:
                 if exc.code == 404:
                     raise NotFound(f"HTTP 404: {url}") from exc
+                if exc.code == 430:
+                    # The quota is global (every exit IP failed at once), so
+                    # retrying or cooling a proxy only wastes requests.
+                    raise MaxLimit(f"HTTP 430 (quota exhausted): {url}") from exc
                 if exc.code == 429:
                     limited = RateLimited(f"HTTP 429: {url}", self._retry_after(exc))
                     if proxy is not None:
@@ -386,11 +398,22 @@ class Client:
         )
         if not isinstance(payload, dict):
             raise ApiError(f"unexpected response from {path}")
+        if self._app_max_limit(payload):
+            raise MaxLimit(
+                f"{path}: {payload.get('message') or payload.get('exception')}"
+            )
         if self._app_error(payload):
             raise ApiError(
                 f"{path}: {payload.get('message') or payload.get('exception')}"
             )
         return payload
+
+    @staticmethod
+    def _app_max_limit(payload: dict[str, Any]) -> bool:
+        message = str(payload.get("message") or payload.get("exception") or "")
+        return str(payload.get("statusCode") or "") == "430" or (
+            "max limit" in message.lower()
+        )
 
     @staticmethod
     def _app_error(payload: dict[str, Any]) -> bool:
@@ -472,7 +495,10 @@ class Client:
     # id discovery
     # ------------------------------------------------------------------
 
-    def source_hadith_ids(self, source_id: int, page: int, page_size: int = 50) -> list[int]:
+    def source_hadith_page(
+        self, source_id: int, page: int, page_size: int = 50
+    ) -> dict[str, Any]:
+        """One page of a book, with every field the by-id endpoint returns."""
         payload = self._request(
             "/api/elastic/v2/ElasticHadithList",
             method="POST",
@@ -490,7 +516,11 @@ class Client:
                 "bookId": source_id,
             },
         )
-        data = payload.get("data") or {}
+        data = payload.get("data")
+        return data if isinstance(data, dict) else {}
+
+    def source_hadith_ids(self, source_id: int, page: int, page_size: int = 50) -> list[int]:
+        data = self.source_hadith_page(source_id, page, page_size)
         result = data.get("resultList") or []
         ids: list[int] = []
         for item in result:

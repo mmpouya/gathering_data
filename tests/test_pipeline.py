@@ -213,10 +213,10 @@ class PipelineTest(unittest.TestCase):
                 return fallback_data
 
             def translations(self, hadith_id):
-                return {"isSuccess": True, "data": []}
+                raise AssertionError("translate fetched while count is unknown")
 
             def explanations(self, hadith_id):
-                return {"isSuccess": True, "data": []}
+                raise AssertionError("explanation fetched while count is unknown")
 
             def rejal(self, hadith_id):
                 raise ApiError("v2 down")
@@ -238,6 +238,7 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(bundle.stages["rejal"].state, "fallback")
         self.assertEqual(bundle.stages["translate"].state, "skipped")
         self.assertEqual(bundle.stages["explanation"].state, "skipped")
+        self.assertIn("primary down", bundle.stages["main"].error or "")
 
         crawl.save_bundle(self.conn, bundle)
         status = self.conn.execute(
@@ -246,6 +247,38 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(status["main_state"], "fallback")
         self.assertEqual(status["rejal_state"], "fallback")
         self.assertGreater(db.counts(self.conn)["hadith_sanad"], 0)
+
+    def test_max_limit_aborts_crawl(self) -> None:
+        fallback_calls: list[int] = []
+
+        class FakeClient:
+            def hadith_detail(self, hadith_id):
+                raise api.MaxLimit("HTTP 430 (quota exhausted)")
+
+            def hadith_detail_fallback(self, hadith_id):
+                fallback_calls.append(hadith_id)
+                return self.fallback["data"]
+
+        with self.assertRaises(api.MaxLimit):
+            crawl.crawl(self.conn, FakeClient(), workers=1)
+
+        self.assertEqual(fallback_calls, [])
+        status = self.conn.execute(
+            "SELECT main_state, attempts FROM crawl_status WHERE hadith_id = 105542"
+        ).fetchone()
+        self.assertEqual(status["main_state"], "pending")
+        self.assertEqual(status["attempts"], 0)
+
+    def test_http_430_raises_max_limit_without_retry(self) -> None:
+        exc = urllib.error.HTTPError("https://x/test", 430, "Max Limit", None, None)
+        client = api.Client(retries=3, backoff=0)
+        with (
+            mock.patch.object(api.urllib.request, "urlopen", side_effect=exc) as mocked,
+            mock.patch.object(api.time, "sleep"),
+        ):
+            with self.assertRaises(api.MaxLimit):
+                client._request("/test")
+        self.assertEqual(mocked.call_count, 1)
 
     def test_client_retries_application_errors(self) -> None:
         class FakeResponse:
@@ -292,6 +325,53 @@ class PipelineTest(unittest.TestCase):
             payload = client._request("/test")
         self.assertIsNone(payload["data"])
         self.assertEqual(mocked.call_count, 1)
+
+    def test_bulk_crawl_saves_list_items_and_resumes(self) -> None:
+        self.conn.execute("DELETE FROM crawl_status")
+        self.conn.execute("DELETE FROM source_seed")
+        self.conn.execute("INSERT INTO sources(id, title) VALUES (1, 'test source')")
+        self.conn.commit()
+
+        item = self.byid["data"][0]
+        other = load("byid_105540.json")["data"][0]
+        fail = {"failed": False}
+
+        class FakeListClient:
+            def source_hadith_page(self, source_id, page, page_size=50):
+                if page == 1:
+                    return {"hadithCount": 3, "resultList": [item, other]}
+                if not fail["failed"]:
+                    fail["failed"] = True
+                    raise ApiError("temporary list failure")
+                return {"hadithCount": 3, "resultList": [other]}
+
+        with mock.patch.object(crawl, "BULK_PAGE_SIZE", 2):
+            failed = crawl.bulk_crawl(self.conn, FakeListClient())
+            self.assertEqual(failed, 1)
+            seed = self.conn.execute(
+                "SELECT status, next_page FROM source_seed WHERE source_id = 1"
+            ).fetchone()
+            self.assertEqual((seed["status"], seed["next_page"]), ("failed", 2))
+            self.assertEqual(db.counts(self.conn)["hadiths"], 2)
+            states = [
+                row[0]
+                for row in self.conn.execute(
+                    "SELECT main_state FROM crawl_status ORDER BY hadith_id"
+                )
+            ]
+            self.assertEqual(states, ["done", "done"])
+
+            failed = crawl.bulk_crawl(self.conn, FakeListClient())
+
+        self.assertEqual(failed, 0)
+        seed = self.conn.execute(
+            "SELECT status, next_page FROM source_seed WHERE source_id = 1"
+        ).fetchone()
+        self.assertEqual((seed["status"], seed["next_page"]), ("done", 3))
+        row = self.conn.execute(
+            "SELECT source_id FROM hadiths WHERE hadith_id = 105542"
+        ).fetchone()
+        self.assertEqual(row["source_id"], 1348)
 
     def test_same_toc_view(self) -> None:
         crawl.save_bundle(self.conn, self.full_bundle())

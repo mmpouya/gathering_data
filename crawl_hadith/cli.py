@@ -9,8 +9,8 @@ import sys
 from pathlib import Path
 
 from . import db
-from .api import ApiError, Client, load_proxies, normalize_proxies
-from .crawl import crawl, ensure_initialized, full_seed
+from .api import ApiError, Client, MaxLimit, load_proxies, normalize_proxies
+from .crawl import bulk_crawl, crawl, ensure_initialized, full_seed
 
 
 class _Tee:
@@ -118,6 +118,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--full-seed",
         action="store_true",
         help="also enumerate every source book to find IDs missing from the sitemap",
+    )
+    crawl_parser.add_argument(
+        "--bulk",
+        action="store_true",
+        help="fetch hadiths book by book from the list endpoint instead of by ID",
     )
     crawl_parser.add_argument(
         "--enrich-fallback",
@@ -236,17 +241,27 @@ def main(argv: list[str] | None = None) -> int:
             conn = db.connect(db_path)
             try:
                 ensure_initialized(conn, client, seed=args.ids is None)
-                if args.full_seed:
-                    full_seed(conn, client)
-                crawl(
-                    conn,
-                    client,
-                    limit=args.limit,
-                    ids=args.ids,
-                    enrich=args.enrich_fallback,
-                    workers=max(1, args.workers),
-                )
+                if args.bulk:
+                    bulk_crawl(conn, client)
+                else:
+                    if args.full_seed:
+                        full_seed(conn, client)
+                    crawl(
+                        conn,
+                        client,
+                        limit=args.limit,
+                        ids=args.ids,
+                        enrich=args.enrich_fallback,
+                        workers=max(1, args.workers),
+                    )
                 _print_status(db_path, conn)
+            except MaxLimit as exc:
+                print(
+                    f"crawl stopped: query quota exhausted ({exc}). "
+                    "Nothing was lost; rerun when the endpoint answers again.",
+                    file=sys.stderr,
+                )
+                return 1
             except ApiError as exc:
                 print(f"request failed: {exc}", file=sys.stderr)
                 return 1

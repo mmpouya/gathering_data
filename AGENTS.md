@@ -67,7 +67,13 @@ tests/
    `ElasticHadithList`, resuming from `source_seed.next_page`.
 4. `crawl.crawl()` selects IDs from `crawl_status`, fetches chunks of at least 16
    IDs with `ThreadPoolExecutor`, and calls `save_bundle()` in the main thread.
-5. `status` prints table counts and stage-state histograms.
+5. `crawl.bulk_crawl()` (`--bulk`) pages
+   `POST /api/elastic/v2/ElasticHadithList` per book instead, saving each item
+   through the same `save_bundle()` with `main=done`; resume is tracked in
+   `source_seed.next_page`. It is the fallback for the by-id quota cap and does
+   not write `hadith_toc`/`hadith_group_members` (list items carry no
+   `tocInfo`/group links).
+6. `status` prints table counts and stage-state histograms.
 
 Proxy rotation is optional and outside the crawl pipeline: `api.Client` accepts
 a proxy list, and `nekoray_pool.py` starts one isolated NekoRay instance per
@@ -142,6 +148,9 @@ uv run python -m crawl_hadith status
 # Retry primary endpoints for rows that used fallback
 uv run python -m crawl_hadith crawl --enrich-fallback
 
+# Bypass the capped by-id endpoint: page every book from the list endpoint
+uv run python -m crawl_hadith crawl --bulk --proxies-file proxies.txt --delay 1.0
+
 # Rotate exit IPs through isolated NekoRay instances (Windows, one UAC prompt)
 uv run python -m crawl_hadith.nekoray_pool start --profiles 0,3,6,22 --elevate
 uv run python -m crawl_hadith crawl --proxies-file proxies.txt --workers 4 --delay 0.5
@@ -203,6 +212,10 @@ repo. Match surrounding style and keep the stdlib-only constraint.
   429s become `RateLimited`: with a proxy pool the proxy cools down (honoring
   `Retry-After`) and another is used; `fetch_bundle` skips the fallback
   endpoint on 429 so one throttled request does not become several.
+  430 `Max Limit` becomes `MaxLimit`, which is deliberately **not** an
+  `ApiError`: the quota is global (every exit IP fails at once), so it is never
+  retried, never degraded to `fallback`, and aborts the run with exit 1 —
+  otherwise a blocked run silently writes thousands of degraded rows.
 - **Parsing defensiveness:** use the `as_*` helpers; skip malformed list items
   instead of aborting a whole crawl. `parse_hadith` and
   `parse_fallback_hadith` may raise `ValueError` when the payload lacks an ID.
@@ -240,6 +253,10 @@ Any agent working in this repository must:
 ## Session Log
 
 <!-- Newest entry first. Append-only; do not modify older entries. -->
+
+- 2026-11-18 - Option B bulk path: added `api.Client.source_hadith_page` (`/api/elastic/v2/ElasticHadithList`, `bookId`, 50/page; `source_hadith_ids` now wraps it) and `crawl.bulk_crawl` (`--bulk`) that saves each list item via `save_bundle` as `main=done`, resuming per book from `source_seed.next_page`; CLI branches to it and skips `crawl`. Deep paging verified to the last page of the largest book (70,018 hadiths). Smoke-tested book 628 against the live API on a scratch DB: 1,386/1,386 hadiths with source, text, qael, counts, cursor at page 29; 22 offline tests pass. Known gap: list items have no `tocInfo`/group links, so `hadith_toc` and `hadith_group_members` stay empty for bulk rows; by-id is still capped. Pending: run `crawl --bulk` on `hadith.db`, then plain `crawl` for translate/explanation/rejal.
+
+- 2026-11-18 - Stop silent fallback bleed: `ElasticHadithById` hit a global HTTP 430 `Max Limit` quota, so every hadith silently degraded to `fallback` (88% of stored rows, no source/toc/qael, zero translations). Added `MaxLimit` in `api.py` (not an `ApiError`, so stage handlers cannot swallow it), 430 + application-level `max limit` detection, abort propagation in `crawl.py`, exit-1 message in `cli.py`; fallback now keeps the primary error in `last_error`; translation/explanation requests are skipped when the count is unknown. Stopped the live run, backed up to `hadith.backup-20261118.db`, reset 3,471 fallback rows to `pending` (rejal kept, nothing deleted). 21 offline tests pass. Pending: the by-id endpoint is still capped, so the corpus needs the `ElasticHadithList` (+`bookId`, `is_short=true`) bulk path; `tocInfo` is `null` there.
 
 - 2026-11-18 - Proxy rotation and 429 handling: added `RateLimited`, HTTP proxy pool with per-proxy pacing/cooldown and `Retry-After` in `api.py`, skip main/rejal fallbacks on 429 in `crawl.py`, `--proxy`/`--proxies-file` in `cli.py`, Windows `nekoray_pool.py` helper (isolated instances, profile selection, exit-IP probe, `--elevate`/`--print-task`), tests, README/.gitignore; verified 19 offline tests pass and a live single-request check through NekoRay's HTTP port 2081. Pending: tune `--workers`/`--delay` on a real run; only four exit IPs were distinct (profiles 0/3/6/22).
 - 2026-11-18 - Per-run logging: added appended `<db>.log` files in `cli.py` via a stdout/stderr tee and configured logger, recording each command, cwd, db path, progress, status, errors, and run end; added `test_cli_appends_run_log_with_command`, README logging docs, and `*.log` ignore. Verification: 9 offline tests pass. Pending: none.

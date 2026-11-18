@@ -51,6 +51,7 @@ Useful flags for `crawl`:
 | `--limit N` | Process at most N pending/failed rows |
 | `--ids A,B,C` | Process only these IDs; skips sitemap seeding |
 | `--full-seed` | Scan all source books to discover missing IDs |
+| `--bulk` | Fetch hadiths book by book from the list endpoint instead of by ID |
 | `--enrich-fallback` | Retry primary endpoints for `fallback` stages |
 
 ## Run log
@@ -137,12 +138,22 @@ and `rejal`. Every stage is in one of these states:
 - A 429 skips the main `HadithById` fallback and the rejal v1 fallback. Both
   endpoints share the same IP and limit, so retrying them only adds load; the
   stage stays `failed` for the next run.
+- HTTP 430 `Max Limit` is a server-side query quota, not an IP limit: every exit
+  IP fails at once and it does not clear quickly. `crawl` stops with exit code 1
+  and writes no `fallback` rows; rerun later when the endpoint answers again.
+  This is why the exact same response must never be retried or rotated through
+  proxies.
 - The main endpoint falls back to `GET /api/hadith/HadithById?id=`. That legacy
   endpoint has core text but no group/toc IDs, so the stage becomes `fallback`.
-  Running with `--enrich-fallback` later tries the primary endpoint again.
+  Running with `--enrich-fallback` later tries the primary endpoint again. When
+  the fallback succeeds, the primary error is still kept in
+  `crawl_status.last_error` (visible in the error queries), so a blocked primary
+  is never silent.
 - Rejal falls back from `HadithRejalList/v2` to `HadithRejalList`.
 - Translations and explanations have no alternate endpoint. They retry, then
-  remain `failed` for the next run.
+  remain `failed` for the next run. When the translation/explanation count is
+  unknown (a `fallback` main row), no request is made; the stage becomes
+  `skipped` and enrichment re-fetches it once the count is known.
 - A failed stage never deletes existing rows. A successful stage replaces only
   its own rows.
 - `crawl` automatically selects `pending` and `failed` rows. Only the stages
@@ -151,6 +162,33 @@ and `rejal`. Every stage is in one of these states:
 
 The optional `--full-seed` uses a separate `source_seed` table and resumes each
 book from its last completed page.
+
+## Bulk mode
+
+`POST /api/elastic/ElasticHadithById` is capped by a server-side daily quota
+(HTTP 430 `Max Limit`), and the cap is global: rotating proxies does not help.
+`crawl --bulk` therefore pages `POST /api/elastic/v2/ElasticHadithList` book by
+book (`bookId`, 50 per page) and saves each item through the normal
+`save_bundle`, exactly as if the by-id endpoint had returned it.
+
+```powershell
+uv run python -m crawl_hadith crawl --bulk --proxies-file proxies.txt --delay 1.0
+uv run python -m crawl_hadith crawl      # fills translate/explanation/rejal
+```
+
+- Resume lives in `source_seed`: one row per book, `next_page` advances only
+  after a page is committed, and a failed book is retried on the next run.
+- A page returns the full record (text, source, book, volume, page, author,
+  qael list, group id, translate/explanation counts), so main rows are written
+  as `done` with their counts.
+- It covers the whole corpus in ~7,900 requests instead of 393k, and it also
+  discovers IDs that are missing from the sitemap.
+- **Gap:** list items carry no `tocInfo` and no group links, so `hadith_toc` and
+  `hadith_group_members` stay empty for these rows. Those columns need a
+  separate by-id pass once the quota allows it (reset `main_state` to `pending`
+  for the rows to revisit).
+- Translations, explanations, and rejal are not fetched in bulk mode; the
+  following plain `crawl` run fills them stage by stage.
 
 ## Schema
 

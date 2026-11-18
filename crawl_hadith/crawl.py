@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import db, parse
-from .api import SITE_URL, ApiError, Client, RateLimited
+from .api import SITE_URL, ApiError, Client, MaxLimit, RateLimited
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +82,11 @@ def fetch_bundle(client: Client, row: Any, *, enrich: bool = False) -> Bundle:
                 fallback_data = None
 
             if fallback_data is not None:
-                bundle.stages["main"] = StageResult("fallback", fallback_data)
+                bundle.stages["main"] = StageResult(
+                    "fallback",
+                    fallback_data,
+                    str(primary_error) if primary_error is not None else None,
+                )
             elif main_state == "fallback":
                 # An enrichment attempt failed; keep the existing fallback data.
                 bundle.stages["main"] = StageResult(
@@ -130,7 +134,9 @@ def fetch_bundle(client: Client, row: Any, *, enrich: bool = False) -> Bundle:
         and bool(translate_count and translate_count > 0)
     )
     if translate_need:
-        if translate_count == 0:
+        # Unknown count (fallback row) means no cheap way to know; skip without
+        # spending a request. Enrichment re-fetches it once the count is known.
+        if not translate_count:
             bundle.stages["translate"] = StageResult("skipped")
         else:
             try:
@@ -156,7 +162,7 @@ def fetch_bundle(client: Client, row: Any, *, enrich: bool = False) -> Bundle:
         and bool(explanation_count and explanation_count > 0)
     )
     if explanation_need:
-        if explanation_count == 0:
+        if not explanation_count:
             bundle.stages["explanation"] = StageResult("skipped")
         else:
             try:
@@ -428,6 +434,88 @@ def full_seed(conn: Any, client: Client) -> int:
     return failed
 
 
+BULK_PAGE_SIZE = 50
+
+
+def bulk_crawl(conn: Any, client: Client) -> int:
+    """Write hadiths book by book from the list endpoint.
+
+    The by-id endpoint is quota-capped (HTTP 430) while the list endpoint keeps
+    working and returns the same fields, minus ``tocInfo`` and group links. Each
+    item is saved as ``done`` with its translate/explanation counts, so a later
+    ``crawl`` run fills those stages and rejal per hadith.
+    """
+    db.init_source_seed(conn)
+    conn.commit()
+    sources = db.sources_to_seed(conn)
+    if not sources:
+        print("bulk crawl: all sources already done", flush=True)
+        return 0
+
+    print(
+        f"bulk crawl: {len(sources)} source(s), page size {BULK_PAGE_SIZE}",
+        flush=True,
+    )
+    failed = 0
+    saved = 0
+    for index, source in enumerate(sources, start=1):
+        source_id = source["source_id"]
+        page = source["next_page"]
+        total_pages: int | None = None
+        try:
+            while True:
+                data = client.source_hadith_page(source_id, page, BULK_PAGE_SIZE)
+                if total_pages is None:
+                    count = parse.as_int(data.get("hadithCount")) or 0
+                    total_pages = (count + BULK_PAGE_SIZE - 1) // BULK_PAGE_SIZE
+                items = data.get("resultList") or []
+                ids = [
+                    hadith_id
+                    for item in items
+                    if (hadith_id := parse.as_int(item.get("hadithId"))) is not None
+                ]
+                if not ids:
+                    break
+                db.seed_ids(conn, ids)
+                for item in items:
+                    hadith_id = parse.as_int(item.get("hadithId"))
+                    if hadith_id is None:
+                        continue
+                    save_bundle(
+                        conn,
+                        Bundle(hadith_id, {"main": StageResult("done", item)}),
+                    )
+                db.set_source_seed(
+                    conn, source_id, status="pending", next_page=page + 1
+                )
+                conn.commit()
+                saved += len(ids)
+                page += 1
+                if page > total_pages:
+                    break
+        except ApiError as exc:
+            failed += 1
+            logger.warning("bulk crawl failed for source %s: %s", source_id, exc)
+            db.set_source_seed(
+                conn,
+                source_id,
+                status="failed",
+                next_page=page,
+                error=str(exc),
+                increment_attempts=True,
+            )
+            conn.commit()
+        else:
+            db.set_source_seed(conn, source_id, status="done", next_page=page)
+            conn.commit()
+        print(
+            f"bulk crawl: {index}/{len(sources)} sources, {saved} hadiths, "
+            f"{failed} failed",
+            flush=True,
+        )
+    return failed
+
+
 def ensure_initialized(conn: Any, client: Client, *, seed: bool = True) -> None:
     db.ensure_schema(conn)
     if db.get_meta(conn, "sources_seeded_at") is None:
@@ -511,6 +599,10 @@ def crawl(
                     hadith_id = int(row["hadith_id"])
                     try:
                         bundle = future.result()
+                    except MaxLimit:
+                        # Quota is global; let the run abort instead of writing
+                        # thousands of degraded fallback rows.
+                        raise
                     except Exception as exc:  # unexpected bug or transport issue
                         logger.exception("fetch failed for hadith %s", hadith_id)
                         bundle = Bundle(hadith_id)
