@@ -165,7 +165,7 @@ class ProxyPool:
                     and wait >= 5.0
                     and now - self._last_wait_log >= 30.0
                 ):
-                    logger.info("all proxies busy or cooling, waiting %.1fs", wait)
+                    # logger.info("all proxies busy or cooling, waiting %.1fs", wait)
                     self._last_wait_log = now
                 self._cv.wait(timeout)
 
@@ -185,9 +185,7 @@ class ProxyPool:
                 DEFAULT_RATE_LIMIT_COOLDOWN * (2 ** min(proxy.failures - 1, 4)),
             )
             seconds = max(base, retry_after or 0.0)
-            proxy.cooldown_until = max(
-                proxy.cooldown_until, time.monotonic() + seconds
-            )
+            proxy.cooldown_until = max(proxy.cooldown_until, time.monotonic() + seconds)
             self._cv.notify_all()
             return seconds
 
@@ -421,7 +419,9 @@ class Client:
         message = str(payload.get("message") or payload.get("exception") or "")
         if payload.get("isSuccess") is False or status >= 500:
             return True
-        return "403" in message or "Forbidden" in message or "timeout" in message.lower()
+        return (
+            "403" in message or "Forbidden" in message or "timeout" in message.lower()
+        )
 
     def get_bytes(self, url: str) -> bytes:
         return self._fetch(url, raw=True)
@@ -465,9 +465,7 @@ class Client:
         return data[0]
 
     def hadith_detail_fallback(self, hadith_id: int) -> dict[str, Any] | None:
-        payload = self._request(
-            "/api/hadith/HadithById", params={"id": hadith_id}
-        )
+        payload = self._request("/api/hadith/HadithById", params={"id": hadith_id})
         data = payload.get("data")
         return data if isinstance(data, dict) else None
 
@@ -520,7 +518,9 @@ class Client:
         data = payload.get("data")
         return data if isinstance(data, dict) else {}
 
-    def source_hadith_ids(self, source_id: int, page: int, page_size: int = 50) -> list[int]:
+    def source_hadith_ids(
+        self, source_id: int, page: int, page_size: int = 50
+    ) -> list[int]:
         data = self.source_hadith_page(source_id, page, page_size)
         result = data.get("resultList") or []
         ids: list[int] = []
