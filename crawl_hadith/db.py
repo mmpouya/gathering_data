@@ -343,11 +343,29 @@ def select_pending_ids(
     limit: int | None = None,
     ids: Sequence[int] | None = None,
     enrich: bool = False,
+    skip_main: bool = False,
 ) -> list[int]:
     if ids is not None:
         seed_ids(conn, ids)
         conn.commit()
         result = sorted(set(int(value) for value in ids))
+        if skip_main:
+            # Never select a row whose main data is missing: its text counts
+            # are unknown, so translate/explanation would be skipped forever.
+            ready: set[int] = set()
+            for start in range(0, len(result), 900):
+                chunk = result[start : start + 900]
+                placeholders = ",".join("?" for _ in chunk)
+                ready.update(
+                    row[0]
+                    for row in conn.execute(
+                        "SELECT hadith_id FROM crawl_status"
+                        " WHERE main_state NOT IN ('pending','failed')"
+                        f" AND hadith_id IN ({placeholders})",
+                        chunk,
+                    )
+                )
+            result = [hadith_id for hadith_id in result if hadith_id in ready]
         return result[:limit] if limit is not None else result
 
     clauses = [
@@ -357,21 +375,40 @@ def select_pending_ids(
         "rejal_state IN ('pending','failed')",
     ]
     if enrich:
-        clauses.extend(
-            [
-                "main_state = 'fallback'",
-                "rejal_state = 'fallback'",
-            ]
-        )
+        clauses.append("rejal_state = 'fallback'")
+        if not skip_main:
+            clauses.append("main_state = 'fallback'")
     sql = (
-        "SELECT hadith_id FROM crawl_status WHERE "
+        "SELECT hadith_id FROM crawl_status WHERE ("
         + " OR ".join(clauses)
-        + (
+        + ")"
+    )
+    if skip_main:
+        # These rows never touch the quota-capped by-id endpoint.
+        sql += " AND main_state NOT IN ('pending','failed')"
+    sql += (
+        " ORDER BY CASE WHEN rejal_state = 'fallback' THEN 0 ELSE 1 END, hadith_id"
+        if enrich and skip_main
+        else (
             " ORDER BY CASE WHEN main_state = 'fallback'"
             " OR rejal_state = 'fallback' THEN 0 ELSE 1 END, hadith_id"
             if enrich
             else " ORDER BY hadith_id"
         )
+    )
+    params: list[Any] = []
+    if limit is not None:
+        sql += " LIMIT ?"
+        params.append(limit)
+    return [row[0] for row in conn.execute(sql, params)]
+
+
+def select_main_pending_ids(
+    conn: sqlite3.Connection, *, limit: int | None = None
+) -> list[int]:
+    sql = (
+        "SELECT hadith_id FROM crawl_status"
+        " WHERE main_state IN ('pending','failed') ORDER BY hadith_id"
     )
     params: list[Any] = []
     if limit is not None:

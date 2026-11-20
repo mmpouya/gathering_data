@@ -347,6 +347,32 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(body["bookId"], 628)
         self.assertEqual(payload, {"hadithCount": 0, "resultList": []})
 
+    def test_hadith_details_sends_batch_and_wraps_single(self) -> None:
+        items = load("byid_105540.json")["data"] + self.byid["data"]
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self) -> bytes:
+                return json.dumps({"data": items}).encode()
+
+        client = api.Client(retries=1, backoff=0)
+        with mock.patch.object(
+            api.urllib.request, "urlopen", return_value=FakeResponse()
+        ) as mocked:
+            result = client.hadith_details([105540, 105542])
+            single = client.hadith_detail(105540)
+        batch_body = json.loads(mocked.call_args_list[0].args[0].data)
+        single_body = json.loads(mocked.call_args_list[1].args[0].data)
+        self.assertEqual(batch_body["hadithId"], [105540, 105542])
+        self.assertEqual(single_body["hadithId"], [105540])
+        self.assertEqual(result, items)
+        self.assertEqual(single, items[0])
+
     def test_bulk_crawl_saves_list_items_and_resumes(self) -> None:
         self.conn.execute("DELETE FROM crawl_status")
         self.conn.execute("DELETE FROM source_seed")
@@ -400,6 +426,109 @@ class PipelineTest(unittest.TestCase):
             "SELECT source_id FROM hadiths WHERE hadith_id = 105542"
         ).fetchone()
         self.assertEqual(row["source_id"], 1348)
+
+    def test_skip_main_selects_and_fetches_only_non_main_rows(self) -> None:
+        item = self.byid["data"][0]
+        crawl.save_bundle(
+            self.conn,
+            crawl.Bundle(105542, {"main": crawl.StageResult("done", item)}),
+        )
+        db.seed_ids(self.conn, [105540])
+        self.conn.commit()
+
+        self.assertEqual(
+            db.select_pending_ids(self.conn), [105540, 105542]
+        )
+        self.assertEqual(
+            db.select_pending_ids(self.conn, skip_main=True), [105542]
+        )
+
+        translations = self.translations
+        explanations = self.explanations
+        rejal = self.rejal_v2
+
+        class FakeClient:
+            def hadith_detail(self, hadith_id):
+                raise AssertionError("by-id endpoint called by skip-main")
+
+            def translations(self, hadith_id):
+                return translations
+
+            def explanations(self, hadith_id):
+                return explanations
+
+            def rejal(self, hadith_id):
+                return rejal
+
+        row = db.status_rows(self.conn, [105542])[0]
+        bundle = crawl.fetch_bundle(FakeClient(), row, skip_main=True)
+        self.assertNotIn("main", bundle.stages)
+        self.assertEqual(bundle.stages["translate"].state, "done")
+        self.assertEqual(bundle.stages["explanation"].state, "done")
+        self.assertEqual(bundle.stages["rejal"].state, "done")
+
+    def test_main_batch_crawl_batches_and_keeps_missing_pending(self) -> None:
+        self.conn.execute("DELETE FROM crawl_status")
+        db.seed_ids(self.conn, [105540, 105541, 105542])
+        self.conn.commit()
+        item_540 = load("byid_105540.json")["data"][0]
+        item_542 = self.byid["data"][0]
+        calls: list[list[int]] = []
+
+        class FakeBatchClient:
+            def hadith_details(self, ids):
+                calls.append(list(ids))
+                return [
+                    item
+                    for item in (item_540, item_542)
+                    if item["hadithId"] in ids
+                ]
+
+        with mock.patch.object(crawl, "MAIN_BATCH_SIZE", 2):
+            result = crawl.main_batch_crawl(self.conn, FakeBatchClient())
+
+        self.assertEqual(calls, [[105540, 105541], [105542]])
+        self.assertEqual(result, {"total": 3, "saved": 2, "missing": 1})
+        states = {
+            row["hadith_id"]: row["main_state"]
+            for row in self.conn.execute(
+                "SELECT hadith_id, main_state FROM crawl_status ORDER BY hadith_id"
+            )
+        }
+        self.assertEqual(
+            states, {105540: "done", 105541: "pending", 105542: "done"}
+        )
+        self.assertEqual(db.select_main_pending_ids(self.conn), [105541])
+        self.assertEqual(db.counts(self.conn)["hadiths"], 2)
+        self.assertGreater(db.counts(self.conn)["hadith_toc"], 0)
+
+    def test_bulk_marks_book_past_list_cap_done(self) -> None:
+        self.conn.execute("DELETE FROM crawl_status")
+        self.conn.execute("DELETE FROM source_seed")
+        self.conn.execute("INSERT INTO sources(id, title) VALUES (1, 'test source')")
+        db.init_source_seed(self.conn)
+        self.conn.execute(
+            "UPDATE source_seed SET next_page = 3 WHERE source_id = 1"
+        )
+        self.conn.commit()
+
+        class FakeListClient:
+            def source_hadith_page(self, source_id, page, page_size=50):
+                raise AssertionError("capped book should not request a page")
+
+        with (
+            mock.patch.object(crawl, "BULK_PAGE_SIZE", 2),
+            mock.patch.object(crawl, "BULK_LIST_MAX_ITEMS", 4),
+        ):
+            failed = crawl.bulk_crawl(self.conn, FakeListClient())
+
+        self.assertEqual(failed, 0)
+        seed = self.conn.execute(
+            "SELECT status, next_page, last_error FROM source_seed WHERE source_id = 1"
+        ).fetchone()
+        self.assertEqual(seed["status"], "done")
+        self.assertEqual(seed["next_page"], 3)
+        self.assertIn("list capped at 4", seed["last_error"])
 
     def test_same_toc_view(self) -> None:
         crawl.save_bundle(self.conn, self.full_bundle())

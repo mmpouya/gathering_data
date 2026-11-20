@@ -449,20 +449,25 @@ class Client:
     # hadith data
     # ------------------------------------------------------------------
 
-    def hadith_detail(self, hadith_id: int) -> dict[str, Any] | None:
+    def hadith_details(self, hadith_ids: list[int]) -> list[dict[str, Any]]:
+        """Fetch several hadiths in one request; missing IDs are simply absent."""
         payload = self._request(
             "/api/elastic/ElasticHadithById",
             method="POST",
             body={
-                "hadithId": [hadith_id],
+                "hadithId": list(hadith_ids),
                 "searchPhrase": "",
                 "is_short": False,
             },
         )
         data = payload.get("data") or []
-        if not isinstance(data, list) or not data:
-            return None
-        return data[0]
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def hadith_detail(self, hadith_id: int) -> dict[str, Any] | None:
+        items = self.hadith_details([hadith_id])
+        return items[0] if items else None
 
     def hadith_detail_fallback(self, hadith_id: int) -> dict[str, Any] | None:
         payload = self._request("/api/hadith/HadithById", params={"id": hadith_id})

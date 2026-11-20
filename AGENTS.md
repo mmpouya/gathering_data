@@ -67,14 +67,22 @@ tests/
    `ElasticHadithList`, resuming from `source_seed.next_page`.
 4. `crawl.crawl()` selects IDs from `crawl_status`, fetches chunks of at least 16
    IDs with `ThreadPoolExecutor`, and calls `save_bundle()` in the main thread.
-5. `crawl.bulk_crawl()` (`--bulk`) pages
+   `--skip-main` selects only rows whose main stage is not pending/failed, so
+   translate/explanation/rejal keep progressing while the by-id quota is down.
+5. `crawl.main_batch_crawl()` (`--main-batch`) selects `main_state IN
+   ('pending','failed')` and posts up to 50 IDs per `ElasticHadithById` request,
+   saving each returned item with `main=done`; omitted IDs stay pending for the
+   single-ID path. It is the cheap way to clear the by-id backlog.
+6. `crawl.bulk_crawl()` (`--bulk`) pages
    `POST /api/elastic/v2/ElasticHadithList` per book instead, saving each item
    through the same `save_bundle()` with `main=done`; resume is tracked in
    `source_seed.next_page`. It is the fallback for the by-id quota cap: list
    items carry no `tocInfo` (so `hadith_toc` stays empty), but the request sends
    `isGroup: true`, so `groupTogetherList` comes back and group members are
-   written from the same pages.
-6. `status` prints table counts and stage-state histograms.
+   written from the same pages. The list endpoint caps each `bookId` at 20,100
+   items (page 402 at 50/page); a book resumed past that page is marked `done`
+   with a `list capped at ...` note, and the overflow is left to `--main-batch`.
+7. `status` prints table counts and stage-state histograms.
 
 Proxy rotation is optional and outside the crawl pipeline: `api.Client` accepts
 a proxy list, and `nekoray_pool.py` starts one isolated NekoRay instance per
@@ -125,10 +133,13 @@ four independent states in `crawl_status`:
 `api.Client`: `SourceList`, `FormatList`, `LanguageList`, `QaelRoleList`,
 `ElasticStatistics`, `ElasticHadithById`, `HadithById`, `TranslateList`,
 `ExplanationList`, `HadithRejalList/v2`, `HadithRejalList`, and
-`ElasticHadithList`. `README.md` documents the API-to-table mapping and useful
-SQL queries; treat it as the user-facing reference. `ElasticHadithList` also
-accepts `tocInfo: [tocId]` to filter by chapter and `isGroup: true` to include
-`groupTogetherList`; its page size is capped at 50. `TocListBySource` and
+`ElasticHadithList`. `ElasticHadithById` accepts a list of IDs, so
+`api.Client.hadith_details()` fetches up to `MAIN_BATCH_SIZE` rows in one
+request; `hadith_detail()` is the single-ID wrapper. `README.md` documents the
+API-to-table mapping and useful SQL queries; treat it as the user-facing
+reference. `ElasticHadithList` also accepts `tocInfo: [tocId]` to filter by
+chapter and `isGroup: true` to include `groupTogetherList`; its page size is
+capped at 50, and a `bookId` query stops at 20,100 items. `TocListBySource` and
 `TocListByToc` return the chapter tree.
 
 ## Development & Tooling Commands
@@ -155,6 +166,12 @@ uv run python -m crawl_hadith crawl --enrich-fallback
 # Bypass the capped by-id endpoint: page every book from the list endpoint
 uv run python -m crawl_hadith crawl --bulk --proxies-file proxies.txt --delay 1.0
 
+# While by-id is capped, fetch only translate/explanation/rejal
+uv run python -m crawl_hadith crawl --skip-main --proxies-file proxies.txt
+
+# Clear main-pending rows cheaply: up to 50 IDs per by-id request
+uv run python -m crawl_hadith crawl --main-batch --limit 5000
+
 # Rotate exit IPs through isolated NekoRay instances (Windows, one UAC prompt)
 uv run python -m crawl_hadith.nekoray_pool start --profiles 0,3,6,22 --elevate
 uv run python -m crawl_hadith crawl --proxies-file proxies.txt --workers 4 --delay 0.5
@@ -175,8 +192,8 @@ uv run python -m compileall -q crawl_hadith tests
 
 Crawl flags: `--db`, `--workers` (default 2), `--delay` (default 0.2 s, per
 proxy when a pool is used), `--retries` (default 5), `--timeout` (default 60 s),
-`--proxy`, `--proxies-file`, `--limit`, `--ids`, `--full-seed`,
-`--enrich-fallback`.
+`--proxy`, `--proxies-file`, `--limit`, `--ids`, `--full-seed`, `--bulk`,
+`--main-batch`, `--skip-main`, `--enrich-fallback`.
 
 There is **no** lint, format, type-check, build, or CI configuration in the
 repo. Match surrounding style and keep the stdlib-only constraint.
@@ -257,6 +274,8 @@ Any agent working in this repository must:
 ## Session Log
 
 <!-- Newest entry first. Append-only; do not modify older entries. -->
+
+- 2026-11-20 - Batched by-id + stage split: diagnosed the repeated 430 as the global by-id quota (exhausted at 09:33 after the overnight run; plain crawl stalls at the first main-pending ID 118851) and the list endpoint's 20,100-item `bookId` cap (the four largest books stuck at `source_seed.next_page=403`). Added `api.Client.hadith_details` (multi-ID POST), `crawl.main_batch_crawl` (`--main-batch`, 50 IDs/request, omitted IDs stay pending), `db.select_main_pending_ids`, `db.select_pending_ids(skip_main=True)` plus `crawl --skip-main` (never touches by-id), and bulk cap handling (a resume past page 402 marks the book `done` with a `list capped at ...` note). 27 offline tests pass (4 new: batch API, skip-main selection/fetch, main batch, bulk cap). Pending: run `--main-batch` when the quota resets, then `--skip-main`/normal crawl; toc backfill for the 313k bulk rows is still open.
 
 - 2026-11-18 - Bulk group links: `api.source_hadith_page` now sends `isGroup: true`, so `ElasticHadithList` returns `groupTogetherList` and bulk mode fills `hadith_group_members`/`group_hadith_count` from the same pages; added a never-shrink guard in `db.write_group_members` (a partial payload cannot delete a larger stored group), `test_list_request_asks_for_groups`, and group assertions in the bulk test. Verified live on scratch DB book 628: 1,378 hadiths, 4,775 group rows, 1,378 groups, 0 toc rows; 23 offline tests pass. Pending: toc only - test whether `ElasticHadithById` accepts batched `hadithId` when its 430 quota clears; otherwise a chapter pass (`tocInfo: [tocId]` + `TocListBySource`/`TocListByToc`) is the fallback.
 

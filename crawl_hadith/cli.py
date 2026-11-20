@@ -10,7 +10,7 @@ from pathlib import Path
 
 from . import db
 from .api import ApiError, Client, MaxLimit, load_proxies, normalize_proxies
-from .crawl import bulk_crawl, crawl, ensure_initialized, full_seed
+from .crawl import bulk_crawl, crawl, ensure_initialized, full_seed, main_batch_crawl
 
 
 class _Tee:
@@ -123,6 +123,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "--bulk",
         action="store_true",
         help="fetch hadiths book by book from the list endpoint instead of by ID",
+    )
+    crawl_parser.add_argument(
+        "--main-batch",
+        action="store_true",
+        help="fetch main-pending hadiths in batches (fewer by-id requests)",
+    )
+    crawl_parser.add_argument(
+        "--skip-main",
+        action="store_true",
+        help="fetch translate/explanation/rejal only; leave main-pending rows untouched",
     )
     crawl_parser.add_argument(
         "--enrich-fallback",
@@ -243,6 +253,8 @@ def main(argv: list[str] | None = None) -> int:
                 ensure_initialized(conn, client, seed=args.ids is None)
                 if args.bulk:
                     bulk_crawl(conn, client)
+                elif args.main_batch:
+                    main_batch_crawl(conn, client, limit=args.limit)
                 else:
                     if args.full_seed:
                         full_seed(conn, client)
@@ -252,6 +264,7 @@ def main(argv: list[str] | None = None) -> int:
                         limit=args.limit,
                         ids=args.ids,
                         enrich=args.enrich_fallback,
+                        skip_main=args.skip_main,
                         workers=max(1, args.workers),
                     )
                 _print_status(db_path, conn)

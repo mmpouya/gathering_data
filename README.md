@@ -35,6 +35,12 @@ uv run python -m crawl_hadith crawl --enrich-fallback
 
 # Add IDs that are not in the sitemap by scanning every source book
 uv run python -m crawl_hadith crawl --full-seed
+
+# While the by-id quota is exhausted, keep fetching the other three stages
+uv run python -m crawl_hadith crawl --skip-main
+
+# Fetch main-pending rows in batches (many IDs per by-id request)
+uv run python -m crawl_hadith crawl --main-batch
 ```
 
 Useful flags for `crawl`:
@@ -52,6 +58,8 @@ Useful flags for `crawl`:
 | `--ids A,B,C` | Process only these IDs; skips sitemap seeding |
 | `--full-seed` | Scan all source books to discover missing IDs |
 | `--bulk` | Fetch hadiths book by book from the list endpoint instead of by ID |
+| `--main-batch` | Fetch main-pending rows in batches through the by-id endpoint |
+| `--skip-main` | Fetch translate/explanation/rejal only; leave main-pending rows alone |
 | `--enrich-fallback` | Retry primary endpoints for `fallback` stages |
 
 ## Run log
@@ -139,11 +147,13 @@ and `rejal`. Every stage is in one of these states:
 - A 429 skips the main `HadithById` fallback and the rejal v1 fallback. Both
   endpoints share the same IP and limit, so retrying them only adds load; the
   stage stays `failed` for the next run.
-- HTTP 430 `Max Limit` is a server-side query quota, not an IP limit: every exit
-  IP fails at once and it does not clear quickly. `crawl` stops with exit code 1
-  and writes no `fallback` rows; rerun later when the endpoint answers again.
-  This is why the exact same response must never be retried or rotated through
-  proxies.
+- HTTP 430 `Max Limit` is a server-side query quota on
+  `ElasticHadithById`, not an IP limit: every exit IP fails at once and it does
+  not clear quickly. `crawl` stops with exit code 1 and writes no `fallback`
+  rows; rerunning in the same quota window only repeats the abort. This is why
+  the exact same response must never be retried or rotated through proxies.
+  While the quota is down, `--skip-main` keeps fetching the three other stages,
+  and `--main-batch` fetches many main-pending IDs per request when it returns.
 - The main endpoint falls back to `GET /api/hadith/HadithById?id=`. That legacy
   endpoint has core text but no group/toc IDs, so the stage becomes `fallback`.
   Running with `--enrich-fallback` later tries the primary endpoint again. When
@@ -166,7 +176,7 @@ book from its last completed page.
 
 ## Bulk mode
 
-`POST /api/elastic/ElasticHadithById` is capped by a server-side daily quota
+`POST /api/elastic/ElasticHadithById` is capped by a server-side query quota
 (HTTP 430 `Max Limit`), and the cap is global: rotating proxies does not help.
 `crawl --bulk` therefore pages `POST /api/elastic/v2/ElasticHadithList` book by
 book (`bookId`, 50 per page) and saves each item through the normal
@@ -185,10 +195,15 @@ uv run python -m crawl_hadith crawl      # fills translate/explanation/rejal
   comes back too and `hadith_group_members` is filled from the same pages.
 - It covers the whole corpus in ~7,900 requests instead of 393k, and it also
   discovers IDs that are missing from the sitemap.
+- The list endpoint stops at 20,100 items per `bookId` (page 402 at 50 per
+  page); page 403 is an application error. A resumed book that starts past that
+  cap is now marked `done` with a `list capped at ...` note instead of retrying
+  forever. The overflow of the four largest books is fetched with
+  `--main-batch`, which batches IDs through `ElasticHadithById`.
 - **Gap:** list items carry no `tocInfo`, so `hadith_toc` stays empty for these
-  rows and `v_same_toc_hadith` cannot derive same-chapter links. Those columns
-  need a separate chapter pass (the list endpoint accepts `tocInfo: [tocId]`)
-  or a by-id pass once the quota allows it.
+  rows and `v_same_toc_hadith` cannot derive same-chapter links. Rows filled by
+  `--main-batch` do get `tocInfo`; the rest need a chapter pass or a full
+  batched by-id backfill.
 - Translations, explanations, and rejal are not fetched in bulk mode; the
   following plain `crawl` run fills them stage by stage.
 

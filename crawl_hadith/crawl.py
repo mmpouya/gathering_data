@@ -51,13 +51,15 @@ def _error_text(primary: BaseException | None, fallback: BaseException | None) -
     return "; ".join(parts) or "unknown error"
 
 
-def fetch_bundle(client: Client, row: Any, *, enrich: bool = False) -> Bundle:
+def fetch_bundle(
+    client: Client, row: Any, *, enrich: bool = False, skip_main: bool = False
+) -> Bundle:
     hadith_id = int(row["hadith_id"])
     bundle = Bundle(hadith_id)
     main_state = row["main_state"]
 
     main_data: dict[str, Any] | None = None
-    if _needs(main_state, enrich=enrich):
+    if _needs(main_state, enrich=enrich) and not skip_main:
         primary_error: BaseException | None = None
         try:
             main_data = client.hadith_detail(hadith_id)
@@ -435,6 +437,54 @@ def full_seed(conn: Any, client: Client) -> int:
 
 
 BULK_PAGE_SIZE = 50
+BULK_LIST_MAX_ITEMS = 20_100
+MAIN_BATCH_SIZE = 50
+
+
+def main_batch_crawl(
+    conn: Any, client: Client, *, limit: int | None = None
+) -> dict[str, int]:
+    """Fetch main-pending hadiths in batches through the by-id endpoint.
+
+    The endpoint accepts a list of ids, so the quota-capped call count drops
+    from one per hadith to one per ``MAIN_BATCH_SIZE``. IDs the response omits
+    stay pending for the single-id path (and its legacy fallback) to resolve.
+    """
+    ids = db.select_main_pending_ids(conn, limit=limit)
+    if not ids:
+        print("main batch: nothing pending", flush=True)
+        return {"total": 0, "saved": 0, "missing": 0}
+    total = len(ids)
+    print(
+        f"main batch: {total} hadith(s), {MAIN_BATCH_SIZE} per request",
+        flush=True,
+    )
+    saved = 0
+    missing = 0
+    for start in range(0, total, MAIN_BATCH_SIZE):
+        chunk = ids[start : start + MAIN_BATCH_SIZE]
+        by_id: dict[int, dict[str, Any]] = {}
+        for item in client.hadith_details(chunk):
+            hadith_id = parse.as_int(item.get("hadithId") or item.get("id"))
+            if hadith_id is not None:
+                by_id[hadith_id] = item
+        for hadith_id in chunk:
+            item = by_id.get(hadith_id)
+            if item is None:
+                missing += 1
+                continue
+            save_bundle(
+                conn,
+                Bundle(hadith_id, {"main": StageResult("done", item)}),
+            )
+            saved += 1
+        done = min(start + MAIN_BATCH_SIZE, total)
+        if (start // MAIN_BATCH_SIZE) % 20 == 0 or done == total:
+            print(
+                f"main batch: {done}/{total}, {saved} saved, {missing} missing",
+                flush=True,
+            )
+    return {"total": total, "saved": saved, "missing": missing}
 
 
 def bulk_crawl(conn: Any, client: Client) -> int:
@@ -462,8 +512,23 @@ def bulk_crawl(conn: Any, client: Client) -> int:
         source_id = source["source_id"]
         page = source["next_page"]
         total_pages: int | None = None
+        max_pages = BULK_LIST_MAX_ITEMS // BULK_PAGE_SIZE
+        cap_error: str | None = None
         try:
             while True:
+                if page > max_pages:
+                    # The list endpoint refuses pages past its 20,100-item
+                    # window even when hadithCount reports a larger book.
+                    cap_error = (
+                        f"list capped at {BULK_LIST_MAX_ITEMS} items "
+                        f"(page {page})"
+                    )
+                    logger.warning(
+                        "source %s is past the list cap at page %s, marking done",
+                        source_id,
+                        page,
+                    )
+                    break
                 data = client.source_hadith_page(source_id, page, BULK_PAGE_SIZE)
                 if total_pages is None:
                     count = parse.as_int(data.get("hadithCount")) or 0
@@ -506,7 +571,9 @@ def bulk_crawl(conn: Any, client: Client) -> int:
             )
             conn.commit()
         else:
-            db.set_source_seed(conn, source_id, status="done", next_page=page)
+            db.set_source_seed(
+                conn, source_id, status="done", next_page=page, error=cap_error
+            )
             conn.commit()
         print(
             f"bulk crawl: {index}/{len(sources)} sources, {saved} hadiths, "
@@ -574,9 +641,12 @@ def crawl(
     limit: int | None = None,
     ids: list[int] | None = None,
     enrich: bool = False,
+    skip_main: bool = False,
     workers: int = 2,
 ) -> dict[str, int]:
-    ids = db.select_pending_ids(conn, limit=limit, ids=ids, enrich=enrich)
+    ids = db.select_pending_ids(
+        conn, limit=limit, ids=ids, enrich=enrich, skip_main=skip_main
+    )
     if not ids:
         print("nothing pending", flush=True)
         return {"total": 0, "processed": 0}
@@ -591,7 +661,13 @@ def crawl(
                 chunk = ids[start : start + batch_size]
                 rows = db.status_rows(conn, chunk)
                 futures = {
-                    pool.submit(fetch_bundle, client, row, enrich=enrich): row
+                    pool.submit(
+                        fetch_bundle,
+                        client,
+                        row,
+                        enrich=enrich,
+                        skip_main=skip_main,
+                    ): row
                     for row in rows
                 }
                 for future in as_completed(futures):
