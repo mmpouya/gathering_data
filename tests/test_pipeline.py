@@ -326,6 +326,27 @@ class PipelineTest(unittest.TestCase):
         self.assertIsNone(payload["data"])
         self.assertEqual(mocked.call_count, 1)
 
+    def test_list_request_echo_is_not_an_error(self) -> None:
+        # The list endpoint echoes the search request in `message` even on
+        # success; ids 1403/1429 used to trip the 403/429 substring checks.
+        echoed = json.dumps({"BookId": 1403, "PageNumber": 429, "PageSize": 50})
+        payload = {"isSuccess": True, "statusCode": 0, "message": echoed}
+        self.assertFalse(api.Client._app_error(payload))
+        self.assertIsNone(api.Client._app_rate_limit(payload))
+        self.assertFalse(api.Client._app_max_limit(payload))
+
+        self.assertEqual(
+            api.Client._app_rate_limit(
+                {"statusCode": 429, "message": "Too many requests"}
+            ),
+            api.DEFAULT_RATE_LIMIT_COOLDOWN,
+        )
+        self.assertTrue(
+            api.Client._app_error(
+                {"isSuccess": True, "statusCode": 200, "message": "Forbidden"}
+            )
+        )
+
     def test_list_request_asks_for_groups(self) -> None:
         class FakeResponse:
             def __enter__(self):

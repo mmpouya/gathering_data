@@ -190,6 +190,16 @@ class ProxyPool:
             return seconds
 
 
+def _app_message(payload: dict[str, Any]) -> str:
+    """The list endpoint echoes the whole search request in ``message``.
+
+    It does that on success too, so substring checks on it would match ids
+    like 1403 ("403") or 1429 ("429"). Treat a JSON-looking message as empty.
+    """
+    message = str(payload.get("message") or payload.get("exception") or "")
+    return "" if message.lstrip().startswith("{") else message
+
+
 class Client:
     def __init__(
         self,
@@ -374,7 +384,7 @@ class Client:
     @staticmethod
     def _app_rate_limit(payload: dict[str, Any]) -> float | None:
         status = str(payload.get("statusCode") or "")
-        message = str(payload.get("message") or payload.get("exception") or "")
+        message = _app_message(payload)
         if (
             status == "429"
             or "429" in message
@@ -408,7 +418,7 @@ class Client:
 
     @staticmethod
     def _app_max_limit(payload: dict[str, Any]) -> bool:
-        message = str(payload.get("message") or payload.get("exception") or "")
+        message = _app_message(payload)
         return str(payload.get("statusCode") or "") == "430" or (
             "max limit" in message.lower()
         )
@@ -416,7 +426,7 @@ class Client:
     @staticmethod
     def _app_error(payload: dict[str, Any]) -> bool:
         status = payload.get("statusCode") or 0
-        message = str(payload.get("message") or payload.get("exception") or "")
+        message = _app_message(payload)
         if payload.get("isSuccess") is False or status >= 500:
             return True
         return (
